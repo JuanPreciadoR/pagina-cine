@@ -1,4 +1,4 @@
-Aquí tienes el contenido completo del **`README.md`** listo para copiar y pegar directamente en tu archivo:
+
 
 ```markdown
 # 🎬 CineStar — Sistema Web de Gestión de Cine
@@ -166,9 +166,5 @@ pagina-cine/
 └── templates/
     ├── index.html      # Portal principal para clientes
     └── admin.html      # Panel administrativo
-
-```
-
-```
 
 ```
