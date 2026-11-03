@@ -1,0 +1,19 @@
+# Entornos virtuales
+venv/
+.venv/
+env/
+
+# Archivos de configuración privada
+.env
+
+# Archivos temporales de Python y BD local
+__pycache__/
+*.py[cod]
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Archivos del sistema / editores
+.DS_Store
+.vscode/

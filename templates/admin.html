@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Administrativo — CineStar</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  .admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 30px; }
+  .card-stat { background: var(--bg2); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; }
+  .card-stat span { color: var(--mute); font-size: 0.9rem; font-weight: 500; }
+  .card-stat h3 { font-size: 1.8rem; font-weight: 800; margin-top: 8px; color: var(--accent-ink); }
+  
+  .nav-tabs { display: flex; gap: 10px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+  .nav-tab { background: none; border: none; border-bottom: 2px solid transparent; padding: 10px 16px; font-weight: 700; color: var(--mute); cursor: pointer; border-radius: 0; }
+  .nav-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+  
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 15px; background: var(--bg2); border-radius: 12px; overflow: hidden; font-size: 0.95rem; }
+  th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--line); }
+  th { background: var(--bg); font-weight: 700; color: var(--mute); }
+  
+  .badge { padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+  .badge-admin { background: var(--accent); color: var(--on-accent); }
+  .badge-cliente { background: var(--line); color: var(--ink); }
+  .badge-cajero { background: #3b82f6; color: #fff; }
+  .badge-gerente { background: #10b981; color: #fff; }
+
+  select.role-select { background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap top">
+    <a class="logo" href="/">Cine<b>Star</b> <small style="font-size:0.9rem; color:var(--mute);">(Control Panel)</small></a>
+    <a class="btn ghost" href="/" style="margin-left:auto;">Volver al Sitio Web</a>
+  </div>
+</header>
+
+<main class="wrap" style="padding-top:30px;">
+  <h2>Panel General de Control</h2>
+  <p class="sub">Métricas clave, administración de roles y control de cartelera en un solo lugar.</p>
+
+  <!-- TARJETAS DE ESTADÍSTICAS (METRICAS) -->
+  <div class="admin-grid">
+    <div class="card-stat">
+      <span>Recaudación Total</span>
+      <h3 id="statTotal">$0</h3>
+    </div>
+    <div class="card-stat">
+      <span>Boletas Vendidas</span>
+      <h3 id="statCompras">0</h3>
+    </div>
+    <div class="card-stat">
+      <span>Usuarios Registrados</span>
+      <h3 id="statUsuarios">0</h3>
+    </div>
+    <div class="card-stat">
+      <span>Película Destacada</span>
+      <h3 id="statTop" style="font-size:1.2rem; word-break:break-word;">-</h3>
+    </div>
+  </div>
+
+  <!-- NAUVEGACIÓN POR PESTAÑAS -->
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('tab-usuarios')">👥 Usuarios y Roles</button>
+    <button class="nav-tab" onclick="switchTab('tab-cartelera')">🎬 Cartelera y Películas</button>
+    <button class="nav-tab" onclick="switchTab('tab-ventas')">🎟️ Historial de Ventas</button>
+  </div>
+
+  <!-- PESTAÑA 1: GESTIÓN DE USUARIOS Y ROLES -->
+  <div id="tab-usuarios" class="tab-content active">
+    <h3>Lista de Usuarios Registrados</h3>
+    <table id="usersTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nombre</th>
+          <th>Email</th>
+          <th>Rol Actual</th>
+          <th>Cambiar Rol</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- PESTAÑA 2: GESTIÓN DE CARTELERA -->
+  <div id="tab-cartelera" class="tab-content">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px;">
+      <div>
+        <h3>Agregar Nueva Película</h3>
+        <form id="addFilmForm" style="display:flex; flex-direction:column; gap:12px; margin-top:15px;">
+          <input type="text" id="filmTitle" placeholder="Título de la película" required style="padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--bg2); color:var(--ink);">
+          <input type="text" id="filmGenre" placeholder="Género (Ej: Acción / Sci-Fi)" required style="padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--bg2); color:var(--ink);">
+          <div style="display:flex; gap:10px;">
+            <select id="filmFormat" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--bg2); color:var(--ink);">
+              <option value="2D">2D</option>
+              <option value="3D">3D</option>
+              <option value="IMAX">IMAX</option>
+              <option value="4DX">4DX</option>
+            </select>
+            <input type="text" id="filmDuration" placeholder="Duración (Ej: 2h 15m)" required style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--bg2); color:var(--ink);">
+          </div>
+          <button class="btn" type="submit">Guardar Película en Cartelera</button>
+        </form>
+      </div>
+
+      <div>
+        <h3>Películas en Cartelera</h3>
+        <table id="filmsTable">
+          <thead>
+            <tr><th>Título</th><th>Formato</th><th>Duración</th><th>Acción</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PESTAÑA 3: HISTORIAL DE VENTAS -->
+  <div id="tab-ventas" class="tab-content">
+    <h3>Últimas Transacciones Registradas</h3>
+    <table id="salesTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Cliente</th>
+          <th>Película</th>
+          <th>Función</th>
+          <th>Sillas</th>
+          <th>Total</th>
+          <th>Fecha</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+const cop = n => "$" + n.toLocaleString("es-CO");
+
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// Cargar métricas
+async function cargarEstadisticas() {
+  const res = await fetch("/api/admin/stats");
+  if (res.status === 403) { window.location.href = "/"; return; }
+  const data = await res.json();
+  
+  document.querySelector("#statTotal").textContent = cop(data.total_recaudado);
+  document.querySelector("#statCompras").textContent = data.total_compras;
+  document.querySelector("#statUsuarios").textContent = data.total_usuarios;
+  document.querySelector("#statTop").textContent = data.top_pelicula;
+}
+
+// Cargar Usuarios y Roles
+async function cargarUsuarios() {
+  const res = await fetch("/api/admin/usuarios");
+  const data = await res.json();
+  const tbody = document.querySelector("#usersTable tbody");
+  
+  tbody.innerHTML = data.usuarios.map(u => `
+    <tr>
+      <td>${u.id}</td>
+      <td><strong>${u.nombre}</strong></td>
+      <td>${u.email}</td>
+      <td><span class="badge badge-${u.rol}">${u.rol}</span></td>
+      <td>
+        <select class="role-select" onchange="cambiarRol(${u.id}, this.value)">
+          <option value="cliente" ${u.rol==='cliente'?'selected':''}>Cliente</option>
+          <option value="cajero" ${u.rol==='cajero'?'selected':''}>Cajero</option>
+          <option value="gerente" ${u.rol==='gerente'?'selected':''}>Gerente</option>
+          <option value="admin" ${u.rol==='admin'?'selected':''}>Admin</option>
+        </select>
+      </td>
+      <td>
+        <button onclick="eliminarUsuario(${u.id})" class="btn ghost" style="padding:4px 10px; font-size:0.8rem; color:#ff6b6b; border-color:#ff6b6b;">Eliminar</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+async function cambiarRol(id, nuevoRol) {
+  const res = await fetch(`/api/admin/usuarios/cambiar-rol/${id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rol: nuevoRol })
+  });
+  if (res.ok) { cargarUsuarios(); cargarEstadisticas(); }
+}
+
+async function eliminarUsuario(id) {
+  if (!confirm("¿Eliminar este usuario definitivamente?")) return;
+  const res = await fetch(`/api/admin/usuarios/eliminar/${id}`, { method: "DELETE" });
+  const data = await res.json();
+  if (!res.ok) alert(data.error);
+  cargarUsuarios();
+  cargarEstadisticas();
+}
+
+// Cargar Cartelera actual
+async function cargarCartelera() {
+  const res = await fetch("/api/contenido");
+  const data = await res.json();
+  const tbody = document.querySelector("#filmsTable tbody");
+  tbody.innerHTML = (data.films || []).map(f => `
+    <tr>
+      <td><strong>${f.title}</strong></td>
+      <td>${f.format}</td>
+      <td>${f.duration}</td>
+      <td>
+        <button onclick="eliminarPelicula(${f.id})" class="btn ghost" style="padding:3px 8px; font-size:0.75rem; color:#ff6b6b; border-color:#ff6b6b;">Eliminar</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+async function eliminarPelicula(id) {
+  if (!confirm("¿Quitar esta película de la cartelera?")) return;
+  await fetch(`/api/admin/pelicula/eliminar/${id}`, { method: "DELETE" });
+  cargarCartelera();
+}
+
+// Cargar Ventas
+async function cargarVentas() {
+  const res = await fetch("/api/admin/ventas");
+  const data = await res.json();
+  const tbody = document.querySelector("#salesTable tbody");
+  tbody.innerHTML = (data.ventas || []).map(v => `
+    <tr>
+      <td>#${v.id}</td>
+      <td>${v.cliente}<br><small style="color:var(--mute);">${v.email}</small></td>
+      <td><strong>${v.pelicula}</strong> (${v.formato})</td>
+      <td>${v.funcion}</td>
+      <td>${v.asientos}</td>
+      <td><strong>${cop(v.total)}</strong></td>
+      <td><small>${v.fecha}</small></td>
+    </tr>
+  `).join("");
+}
+
+// Guardar película
+document.querySelector("#addFilmForm").onsubmit = async e => {
+  e.preventDefault();
+  const payload = {
+    title: document.querySelector("#filmTitle").value,
+    genre: document.querySelector("#filmGenre").value,
+    format: document.querySelector("#filmFormat").value,
+    duration: document.querySelector("#filmDuration").value,
+    rating: "12+"
+  };
+  const res = await fetch("/api/admin/pelicula/agregar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (res.ok) {
+    document.querySelector("#addFilmForm").reset();
+    cargarCartelera();
+  }
+};
+
+// Inicialización
+cargarEstadisticas();
+cargarUsuarios();
+cargarCartelera();
+cargarVentas();
+</script>
+</body>
+</html>
