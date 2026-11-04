@@ -19,8 +19,7 @@ Abre una terminal en la carpeta donde quieras guardar el proyecto y ejecuta:
 git clone https://github.com/JuanPreciadoR/pagina-cine.git
 cd pagina-cine
 python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
+./.venv/bin/python -m pip install -r requirements.txt
 ```
 
 Si ya tienes el repositorio, omite `git clone` y `cd`; ejecuta los demás
@@ -43,10 +42,11 @@ python -c "import secrets; print(secrets.token_hex(32))"
 Pega el valor generado después de `SECRET_KEY=` en `.env`. No publiques ni
 compartas ese archivo. Si ya existe, no lo sobrescribas.
 
-Inicia el servidor desde la raíz del proyecto y con el entorno virtual activo:
+Inicia el servidor desde la raíz del proyecto usando el Python del entorno
+virtual:
 
 ```bash
-python backend/app.py
+./.venv/bin/python backend/app.py
 ```
 
 Abre <http://127.0.0.1:5000> en el navegador. Mantén abierta la terminal
@@ -60,8 +60,7 @@ del repositorio y ejecuta:
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
+./.venv/bin/python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
@@ -70,7 +69,7 @@ servidor sea accesible desde el navegador de Codespaces, enlázalo a todas las
 interfaces:
 
 ```bash
-FLASK_HOST=0.0.0.0 python backend/app.py
+FLASK_HOST=0.0.0.0 ./.venv/bin/python backend/app.py
 ```
 
 En VS Code, abre la pestaña **Ports** y visita el puerto `5000` reenviado.
@@ -84,10 +83,9 @@ PC con Linux o Windows, usa la URL local `http://127.0.0.1:5000`.
 git clone https://github.com/JuanPreciadoR/pagina-cine.git
 cd pagina-cine
 py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 Copy-Item .env.example .env
-python backend/app.py
+.\.venv\Scripts\python.exe backend\app.py
 ```
 
 Edita `.env` y cambia `SECRET_KEY` antes de iniciar. Si PowerShell bloquea la
@@ -95,10 +93,9 @@ activación del entorno, puedes usar el símbolo del sistema (CMD) en su lugar:
 
 ```cmd
 py -m venv .venv
-.venv\Scripts\activate.bat
-python -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 copy .env.example .env
-python backend\app.py
+.venv\Scripts\python.exe backend\app.py
 ```
 
 No ejecutes de nuevo `Copy-Item` o `copy` si ya existe `.env`, para no
@@ -106,39 +103,28 @@ sobrescribir tu configuración.
 
 ## Solución al error `No module named pip` o `No module named flask`
 
-El entorno virtual puede haberse copiado desde otra carpeta. En ese caso,
-puede aparecer `(.venv)` en la terminal, pero `python` seguir apuntando al
-Python del sistema. En Linux o macOS, desde la raíz del proyecto, recrea el
-entorno virtual y reinstala las dependencias:
+El comando `python` puede apuntar al Python del sistema si el entorno virtual
+no está activado. Para evitar esa ambigüedad, ejecuta el intérprete del entorno
+por su ruta explícita. En Linux o macOS, desde la raíz del proyecto:
 
 ```bash
-deactivate
-python3 -m venv --clear --copies .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
+./.venv/bin/python -m pip install -r requirements.txt
+./.venv/bin/python backend/app.py
 ```
 
-Si `deactivate` indica que no existe el comando, omite esa línea. Comprueba
-que Python y pip pertenecen al entorno del proyecto:
-
-```bash
-which python
-python -m pip --version
-```
-
-Las rutas mostradas deben comenzar con la ruta de este proyecto seguida de
-`.venv/`. Luego inicia el servidor:
-
-```bash
-python backend/app.py
-```
-
-En Windows, cierra y vuelve a abrir la terminal en la raíz del proyecto,
-activa `.venv` con los comandos anteriores y ejecuta:
+En Windows, usa:
 
 ```powershell
-python -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe backend\app.py
 ```
+
+Si `.venv` no existe, créalo primero con `python3 -m venv .venv` en Linux o
+macOS, o `py -m venv .venv` en Windows. No copies el entorno virtual desde
+otra carpeta: contiene rutas específicas del equipo donde se creó.
+
+El entorno virtual está excluido de Git y se debe crear e instalar en cada PC
+o Codespace.
 
 ## Configuración
 
