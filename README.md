@@ -168,25 +168,10 @@ antes de desplegar la aplicación en un entorno accesible a otras personas.
 El panel está en <http://127.0.0.1:5000/admin>; las operaciones administrativas
 requieren iniciar sesión con una cuenta admin.
 
-## Pruebas
-
-Con el entorno virtual activado, ejecuta las pruebas del backend desde la raíz
-del repositorio:
-
-```bash
-python -m unittest discover -s tests -v
-```
-
-La integración continua ejecuta estas pruebas en Linux y Windows con Python
-3.10 y 3.14 en cada push y pull request.
-
 ## Estructura del proyecto
 
 ```text
 pagina-cine/
-├── .github/
-│   └── workflows/
-│       └── tests.yml
 ├── backend/
 │   ├── app.py
 │   └── data/                 # Base SQLite creada al iniciar
@@ -198,7 +183,5 @@ pagina-cine/
 │   └── templates/
 ├── .env.example
 ├── requirements.txt
-├── tests/
-│   └── test_app.py
 └── README.md
 ```
