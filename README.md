@@ -1,170 +1,204 @@
+# CineStar - Sistema web de gestión de cine
 
+CineStar es una aplicación web de demostración construida con Python, Flask,
+SQLite, HTML, CSS y JavaScript. Incluye cartelera, selección de asientos,
+registro e inicio de sesión, un carrito de compras y un panel administrativo.
+Las compras se guardan en la base de datos, pero no se procesa ningún pago real.
 
-```markdown
-# 🎬 CineStar — Sistema Web de Gestión de Cine
+## Requisitos
 
-CineStar es una aplicación web full-stack moderna desarrollada con **Python (Flask)**, **SQLite** e interfaces responsivas hechas con **HTML5, JavaScript (ES6+) y CSS3**. El sistema cubre tanto el flujo del cliente (selección visual de asientos, cartelera, compras) como un módulo administrativo para la gestión de usuarios y roles directamente desde la interfaz web sin manipular la base de datos a mano.
+- Python 3.10 o posterior.
+- Git, si vas a clonar el repositorio.
+- No se necesita Node.js ni una base de datos externa.
 
----
+## Instalación y ejecución en Linux o macOS
 
-## 🚀 Características Principales
+Abre una terminal en la carpeta donde quieras guardar el proyecto y ejecuta:
 
-### 👤 Módulo de Cliente
-* **Cartelera Dinámica:** Filtro por formatos (2D, 3D, IMAX, 4DX) y cambio de ciudad.
-* **Selección Visual de Asientos:** Mapa interactivo de sala en tiempo real (Fila A-E, 1-6) con bloqueo automático de asientos ya ocupados.
-* **Autenticación Integrada:** Inicio de sesión y registro de usuarios mediante ventanas modales nativas.
-* **Carrito y Checkout:** Proceso fluido de compra con validación de sesión activa.
-* **Tema Visual:** Selector de modo oscuro / claro guardado en el navegador.
-
-### ⚙️ Módulo Administrativo (Solo Admin)
-* **Panel de Control Web (`/admin`):** Gestión completa sin requerir herramientas SQL externas.
-* **Gestión de Usuarios:** Ver todos los usuarios registrados, cambiar roles (`cliente` ↔ `admin`) y eliminar cuentas.
-* **Integridad Referencial:** Control de acceso en la API (restringe endpoints a usuarios con rol `admin`).
-
----
-
-## 🛠️ Tecnologías Utilizadas
-
-* **Backend:** Python 3.x, Flask, Werkzeug (Encriptado de contraseñas con Scrypt).
-* **Base de Datos:** SQLite3 con restricciones `CHECK`, `UNIQUE` y `FOREIGN KEY`.
-* **Frontend:** HTML5, CSS3, JavaScript nativo (Fetch API, Async/Await).
-* **Entorno & Variables:** Python-dotenv.
-
----
-
-## 📋 Requisitos Previos
-
-* **Python 3.10+** instalado.
-* **Git** instalado.
-
----
-
-## 💻 Guía de Instalación y Ejecución
-
-Sigue estos pasos según tu sistema operativo:
-
-### 🐧 Opción A: En Linux (Fedora, Ubuntu, Debian, Arch) / macOS
-
-1. **Clonar el repositorio:**
-   ```bash
-   git clone [https://github.com/TU_USUARIO/pagina-cine.git](https://github.com/TU_USUARIO/pagina-cine.git)
-   cd pagina-cine
-
-```
-
-2. **Crear y activar el entorno virtual (`venv`):**
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-
+git clone https://github.com/JuanPreciadoR/pagina-cine.git
+cd pagina-cine
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
+Si ya tienes el repositorio, omite `git clone` y `cd`; ejecuta los demás
+comandos desde la carpeta raíz del proyecto (la que contiene `backend/` y
+`requirements.txt`).
 
-3. **Instalar dependencias:**
-```bash
-pip install -r requirements.txt
+En la primera instalación, crea el archivo local de configuración:
 
-```
-
-
-4. **Configurar el archivo de entorno:**
 ```bash
 cp .env.example .env
-
 ```
 
+Edita `.env` y reemplaza `SECRET_KEY` por un valor aleatorio privado. Puedes
+generar uno con:
 
-5. **Iniciar el servidor:**
 ```bash
-python3 app.py
-
+python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
+Pega el valor generado después de `SECRET_KEY=` en `.env`. No publiques ni
+compartas ese archivo. Si ya existe, no lo sobrescribas.
 
+Inicia el servidor desde la raíz del proyecto y con el entorno virtual activo:
 
----
+```bash
+python backend/app.py
+```
 
-### 🪟 Opción B: En Windows (PowerShell / Command Prompt)
+Abre <http://127.0.0.1:5000> en el navegador. Mantén abierta la terminal
+mientras uses la aplicación; para detenerla, presiona `Ctrl+C`.
 
-1. **Clonar el repositorio:**
-```cmd
-git clone [https://github.com/TU_USUARIO/pagina-cine.git](https://github.com/TU_USUARIO/pagina-cine.git)
+## Visual Studio Code y GitHub Codespaces
+
+En VS Code, abre la carpeta del proyecto y sigue los pasos de instalación del
+sistema operativo que estés usando. En Codespaces, abre una terminal en la raíz
+del repositorio y ejecuta:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env
+```
+
+Configura un `SECRET_KEY` privado en `.env` como se indica arriba. Para que el
+servidor sea accesible desde el navegador de Codespaces, enlázalo a todas las
+interfaces:
+
+```bash
+FLASK_HOST=0.0.0.0 python backend/app.py
+```
+
+En VS Code, abre la pestaña **Ports** y visita el puerto `5000` reenviado.
+Codespaces puede mostrar la aplicación en una URL HTTPS propia; usa esa URL,
+no `127.0.0.1` en tu navegador local. En VS Code ejecutado directamente en tu
+PC con Linux o Windows, usa la URL local `http://127.0.0.1:5000`.
+
+## Instalación en Windows (PowerShell)
+
+```powershell
+git clone https://github.com/JuanPreciadoR/pagina-cine.git
 cd pagina-cine
-
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+python backend/app.py
 ```
 
+Edita `.env` y cambia `SECRET_KEY` antes de iniciar. Si PowerShell bloquea la
+activación del entorno, puedes usar el símbolo del sistema (CMD) en su lugar:
 
-2. **Crear y activar el entorno virtual (`venv`):**
 ```cmd
-python -m venv venv
-venv\Scripts\activate
-
-```
-
-
-3. **Instalar dependencias:**
-```cmd
-pip install -r requirements.txt
-
-```
-
-
-4. **Configurar el archivo de entorno:**
-```cmd
+py -m venv .venv
+.venv\Scripts\activate.bat
+python -m pip install -r requirements.txt
 copy .env.example .env
-
+python backend\app.py
 ```
 
+No ejecutes de nuevo `Copy-Item` o `copy` si ya existe `.env`, para no
+sobrescribir tu configuración.
 
-5. **Iniciar el servidor:**
-```cmd
-python app.py
+## Solución al error `No module named pip` o `No module named flask`
 
+El entorno virtual puede haberse copiado desde otra carpeta. En ese caso,
+puede aparecer `(.venv)` en la terminal, pero `python` seguir apuntando al
+Python del sistema. En Linux o macOS, desde la raíz del proyecto, recrea el
+entorno virtual y reinstala las dependencias:
+
+```bash
+deactivate
+python3 -m venv --clear --copies .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
+Si `deactivate` indica que no existe el comando, omite esa línea. Comprueba
+que Python y pip pertenecen al entorno del proyecto:
 
+```bash
+which python
+python -m pip --version
+```
 
----
+Las rutas mostradas deben comenzar con la ruta de este proyecto seguida de
+`.venv/`. Luego inicia el servidor:
 
-## 🔑 Credenciales por Defecto (Pruebas)
+```bash
+python backend/app.py
+```
 
-Al ejecutar la aplicación por primera vez, el sistema creará automáticamente la base de datos `cinestar.db` y generará la cuenta de administrador inicial:
+En Windows, cierra y vuelve a abrir la terminal en la raíz del proyecto,
+activa `.venv` con los comandos anteriores y ejecuta:
 
-| Rol | Correo Electrónico | Contraseña | Acceso |
-| --- | --- | --- | --- |
-| **Administrador** | `admin@cinestar.com` | `admin123` | Acceso total a `/` y `/admin` |
-| **Cliente** | *(Registrar nuevo en la web)* | *(Mínimo 6 caracteres)* | Acceso a compras y cartelera |
+```powershell
+python -m pip install -r requirements.txt
+```
 
----
+## Configuración
 
-## 🔍 Inspección de la Base de Datos
+Las variables opcionales se configuran en `.env`:
 
-Si deseas examinar directamente las tablas (`usuarios`, `compras`, `contenido`) de forma visual:
+| Variable | Valor predeterminado | Descripción |
+| --- | --- | --- |
+| `SECRET_KEY` | Sin configurar en la plantilla | Clave para firmar las sesiones de Flask. Define un valor privado. |
+| `DATABASE_PATH` | `backend/data/cinestar.db` | Ruta de la base de datos SQLite, relativa a la raíz del proyecto o absoluta. |
+| `FLASK_HOST` | `127.0.0.1` | Dirección donde escucha el servidor local. |
+| `PORT` | `5000` | Puerto HTTP local. |
+| `FLASK_DEBUG` | `0` | Usa `1` solo para desarrollo local. |
 
-* **Herramienta recomendada:** [DB Browser for SQLite](https://sqlitebrowser.org/) (Gratuito y multiplataforma).
-* En Linux Fedora: `sudo dnf install sqlitebrowser`
-* En VSCode: Extensión **SQLite Viewer** (de *qwtel*).
+La base de datos y sus tablas se crean al iniciar la aplicación. No abras
+`frontend/templates/index.html` como archivo local: Flask debe servir la página
+para que funcionen las rutas API, la autenticación y las sesiones.
 
----
+## Acceso de prueba
 
-## 📂 Estructura del Proyecto
+En una base de datos nueva se crea una cuenta de administrador:
+
+- Correo: `admin@cinestar.com`
+- Contraseña: `admin123`
+
+Usa estas credenciales solo para desarrollo local. Cambia o elimina la cuenta
+antes de desplegar la aplicación en un entorno accesible a otras personas.
+El panel está en <http://127.0.0.1:5000/admin>; las operaciones administrativas
+requieren iniciar sesión con una cuenta admin.
+
+## Pruebas
+
+Con el entorno virtual activado, ejecuta las pruebas del backend desde la raíz
+del repositorio:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+La integración continua ejecuta estas pruebas en Linux y Windows con Python
+3.10 y 3.14 en cada push y pull request.
+
+## Estructura del proyecto
 
 ```text
 pagina-cine/
-├── app.py              # Servidor Flask, API REST y conexión a la BD
-├── cinestar.db         # Base de datos SQLite (se genera al iniciar)
-├── .env.example        # Plantilla pública de variables de entorno
-├── .gitignore          # Archivos excluidos del repositorio Git
-├── requirements.txt    # Dependencias del proyecto
-├── README.md           # Documentación
-├── static/
-│   ├── css/
-│   │   └── style.css   # Estilos globales y temas
-│   └── js/
-│       ├── script.js   # Lógica del cliente, asientos y carrito
-│       └── login.js    # Control de sesión y ventanas modales
-└── templates/
-    ├── index.html      # Portal principal para clientes
-    └── admin.html      # Panel administrativo
-
+├── .github/
+│   └── workflows/
+│       └── tests.yml
+├── backend/
+│   ├── app.py
+│   └── data/                 # Base SQLite creada al iniciar
+├── frontend/
+│   ├── static/
+│   │   ├── css/
+│   │   ├── images/
+│   │   └── js/
+│   └── templates/
+├── .env.example
+├── requirements.txt
+├── tests/
+│   └── test_app.py
+└── README.md
 ```

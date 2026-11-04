@@ -87,9 +87,15 @@ async function abrirModalAsientos(pelicula, funcion, formato) {
   let ocupados = [];
   try {
     const res = await fetch(`/api/asientos-ocupados?pelicula=${encodeURIComponent(pelicula)}&funcion=${encodeURIComponent(funcion)}`);
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "No se pudo consultar la disponibilidad.");
     ocupados = data.asientos_ocupados || [];
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.error(e);
+    seatModal.hidden = true;
+    toast(e.message || "No fue posible consultar los asientos.");
+    return;
+  }
 
   const filas = ["A", "B", "C", "D", "E"];
   let gridHTML = "";
@@ -117,12 +123,27 @@ async function abrirModalAsientos(pelicula, funcion, formato) {
 
   $("#confirmSeats").onclick = () => {
     if (!funcionSeleccionada.seleccionados.length) return toast("Selecciona al menos un asiento.");
-    cart.push({
-      pelicula: funcionSeleccionada.pelicula,
-      funcion: funcionSeleccionada.funcion,
-      formato: funcionSeleccionada.formato,
-      asientos: [...funcionSeleccionada.seleccionados]
-    });
+    const sameFunction = cart.find(item =>
+      item.pelicula === funcionSeleccionada.pelicula &&
+      item.funcion === funcionSeleccionada.funcion &&
+      item.formato === funcionSeleccionada.formato
+    );
+    const duplicateSeats = sameFunction
+      ? funcionSeleccionada.seleccionados.filter(seat => sameFunction.asientos.includes(seat))
+      : [];
+    if (duplicateSeats.length) {
+      return toast(`Ya agregaste estos asientos: ${duplicateSeats.join(", ")}`);
+    }
+    if (sameFunction) {
+      sameFunction.asientos.push(...funcionSeleccionada.seleccionados);
+    } else {
+      cart.push({
+        pelicula: funcionSeleccionada.pelicula,
+        funcion: funcionSeleccionada.funcion,
+        formato: funcionSeleccionada.formato,
+        asientos: [...funcionSeleccionada.seleccionados]
+      });
+    }
     drawCart();
     seatModal.hidden = true;
     toast(`${funcionSeleccionada.seleccionados.length} asiento(s) agregados`);
@@ -149,40 +170,45 @@ $("#closeCart").onclick = () => $("#cart").classList.remove("open");
 
 $("#pay").onclick = async () => {
   if (!cart.length) return toast("Tu compra está vacía");
-  const item = cart[0];
+  const payButton = $("#pay");
+  payButton.disabled = true;
 
   try {
-    const res = await fetch("/api/compra", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({
-        pelicula: item.pelicula,
-        funcion: item.funcion,
-        formato: item.formato,
-        asientos: item.asientos
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    
-    // Si no ha iniciado sesión, abrimos el modal de login de forma amigable
-    if (res.status === 401) {
-      $("#cart").classList.remove("open");
-      toast("Inicia sesión para completar tu compra.");
-      setTimeout(() => {
-        if ($("#loginOverlay")) $("#loginOverlay").hidden = false;
-      }, 400);
-      return;
-    }
-    
-    if (!res.ok) return toast(data.error || "No se pudo registrar la compra.");
+    while (cart.length) {
+      const item = cart[0];
+      const res = await fetch("/api/compra", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(item),
+      });
+      const data = await res.json().catch(() => ({}));
 
-    toast(data.mensaje || "¡Compra realizada con éxito!");
-    cart = []; drawCart();
-    $("#cart continental").classList.remove("open");
+      if (res.status === 401) {
+        $("#cart").classList.remove("open");
+        toast("Inicia sesión para completar tu compra.");
+        setTimeout(() => {
+          if ($("#loginOverlay")) $("#loginOverlay").hidden = false;
+        }, 400);
+        return;
+      }
+
+      if (!res.ok) {
+        toast(data.error || "No se pudo registrar la compra. Tu carrito se conservó.");
+        return;
+      }
+
+      cart.shift();
+      drawCart();
+    }
+
+    toast("¡Todas tus compras se registraron con éxito!");
+    $("#cart").classList.remove("open");
   } catch (e) {
     console.error(e);
-    toast("No fue posible conectar con el servidor.");
+    toast("No fue posible conectar con el servidor. Se conservó lo pendiente.");
+  } finally {
+    payButton.disabled = false;
   }
 };
 
@@ -190,6 +216,7 @@ $("#pay").onclick = async () => {
   try {
     const res = await fetch("/api/contenido", { credentials: "same-origin" });
     D = await res.json();
+    if (!res.ok) throw new Error(D.error || "No se pudo cargar el contenido.");
 
     $("#city").innerHTML = Object.keys(D.cities).map(c => `<option>${c}</option>`).join("");
     $("#city").value = city;
