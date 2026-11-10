@@ -22,9 +22,9 @@ const slotButton = (film, slot) => `
     data-film="${esc(film.title)}" data-format="${esc(film.format)}" data-time="${esc(slot)}"
     aria-label="${esc(film.title)}, ${esc(film.format)}, función de las ${esc(slot)}">${esc(slot)}</button>`;
 
-const posterCard = ({ seed, title, chips, meta, footer }) => `
+const posterCard = ({ seed, title, chips, meta, footer, poster }) => `
   <article class="film" style="--hue:${hue(seed)}">
-    <div class="poster">
+    <div class="poster"${poster ? ` style="background-image: linear-gradient(rgb(0 0 0 / 0.18), rgb(0 0 0 / 0.72)), url('${esc(poster)}')"` : ""}>
       <div class="chips">${chips.map(chip => `<span class="chip">${esc(chip)}</span>`).join("")}</div>
       <h3>${esc(title)}</h3>
     </div>
@@ -73,6 +73,7 @@ function renderFilms() {
     ? visible.map((film, i) => posterCard({
         seed: film.id ?? i,
         title: film.title,
+        poster: film.poster ?? null,
         chips: [film.rating, film.format],
         meta: `${film.genre}, ${film.duration}`,
         footer: `<div class="slots">${slots.map(slot => slotButton(film, slot)).join("")}</div>`,

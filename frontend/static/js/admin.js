@@ -141,7 +141,7 @@ $("#addFilmForm").addEventListener("submit", async event => {
   const form = event.currentTarget;
   const { ok, data } = await request("/api/admin/pelicula/agregar", {
     method: "POST",
-    body: Object.fromEntries(new FormData(form)),
+    body: new FormData(form),
   });
   toast(ok ? data.mensaje : data.error || "No pudimos guardar la película.");
   if (ok) { form.reset(); loadFilms(); }

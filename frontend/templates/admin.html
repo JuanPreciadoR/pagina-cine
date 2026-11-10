@@ -55,12 +55,15 @@
       <div class="split">
         <section>
           <h2 class="panel-title">Agregar película</h2>
-          <form class="stack" id="addFilmForm">
+          <form class="stack" id="addFilmForm" enctype="multipart/form-data">
             <label class="field">Título
               <input class="control" name="title" required autocomplete="off">
             </label>
             <label class="field">Género
               <input class="control" name="genre" placeholder="Acción, ciencia ficción" required autocomplete="off">
+            </label>
+            <label class="field">Póster
+              <input class="control" type="file" name="poster" accept="image/png,image/jpeg,image/webp">
             </label>
             <div class="row-2">
               <label class="field">Formato

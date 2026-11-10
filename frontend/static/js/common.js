@@ -9,11 +9,12 @@ const esc = value => String(value ?? "").replace(/[&<>"']/g, char => HTML_ESCAPE
 /** Petición JSON uniforme. Nunca lanza: siempre devuelve { ok, status, data }. */
 async function api(url, { method = "GET", body } = {}) {
   try {
+    const isFormData = body instanceof FormData;
     const res = await fetch(url, {
       method,
-      headers: body ? { "Content-Type": "application/json" } : {},
+      headers: body && !isFormData ? { "Content-Type": "application/json" } : {},
       credentials: "same-origin",
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
     });
     const data = await res.json().catch(() => ({}));
     return { ok: res.ok, status: res.status, data };

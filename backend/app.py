@@ -18,16 +18,19 @@ app = Flask(
     static_folder=PROJECT_DIR / "frontend" / "static",
     template_folder=PROJECT_DIR / "frontend" / "templates",
 )
+app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
 # --- CONEXIÓN MULTIPLATAFORMA (LINUX / WINDOWS) ---
 db_env = os.environ.get("DATABASE_PATH", "backend/data/cinestar.db")
 db_path = Path(db_env)
 DB_PATH = db_path if db_path.is_absolute() else PROJECT_DIR / db_path
+POSTER_DIR = PROJECT_DIR / "frontend" / "static" / "images" / "posters"
+ALLOWED_POSTER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 # ============================================
-# Base de Datos con Integridad
+# Base de Datos 
 # ============================================
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -65,6 +68,7 @@ def init_db():
                 datos TEXT NOT NULL
             )
         """)
+        con.execute("CREATE TABLE IF NOT EXISTS migraciones (nombre TEXT PRIMARY KEY)")
 
         # Migración de columna 'rol' si no existía
         columns = {row["name"] for row in con.execute("PRAGMA table_info(usuarios)")}
@@ -213,13 +217,14 @@ CONTENIDO = {
     "slots": ["12:30", "15:10", "17:45", "20:20", "22:50"],
     "ticketPrices": {"default": 16000, "IMAX": 22000, "4DX": 25000, "3D": 19000},
     "films": [
-        {"id": 1, "title": "Los Hijos del Páramo", "genre": "Drama", "rating": "12+", "format": "2D", "duration": "1h 52m"},
-        {"id": 2, "title": "Neón Sur", "genre": "Acción", "rating": "15+", "format": "IMAX", "duration": "2h 08m"},
-        {"id": 3, "title": "La Casa de los Mil Pasos", "genre": "Terror", "rating": "15+", "format": "4DX", "duration": "1h 41m"}
+        {"id": 1, "title": "Harry Potter", "genre": "Fantasía", "rating": "10+", "format": "2D", "duration": "2h 32m", "poster": "/static/images/posters/harryPotter.png"},
+        {"id": 2, "title": "Cars", "genre": "Animación", "rating": "Todo público", "format": "2D", "duration": "1h 57m", "poster": "/static/images/posters/cars.png"},
+        {"id": 3, "title": "Spiderman", "genre": "Acción", "rating": "12+", "format": "2D", "duration": "2h 01m", "poster": "/static/images/posters/spiderman.png"},
+        {"id": 4, "title": "Toy Story", "genre": "Animación", "rating": "Todo público", "format": "2D", "duration": "1h 21m", "poster": "/static/images/posters/toyStory.png"}
     ],
     "soon": [
-        {"title": "Marea Alta", "genre": "Aventura", "tag": "Próximo estreno"},
-        {"title": "Cumbia Cósmica", "genre": "Musical", "tag": "Preventa abierta"}
+        {"title": "EL Exorcista", "genre": "Aventura", "tag": "Próximo estreno"},
+        {"title": "The Whale", "genre": "Musical", "tag": "Preventa abierta"}
     ],
     "promos": [
         {"title": "Martes y miércoles de descuento", "text": "Entradas a precio especial en formatos 2D y 3D."},
@@ -245,8 +250,38 @@ def sembrar_contenido_inicial():
                 [(key, json.dumps(value, ensure_ascii=False)) for key, value in CONTENIDO.items()],
             )
 
+
+def migrar_peliculas_de_ejemplo():
+    migration_name = "cartelera_predeterminada_v1"
+    peliculas_falsas = {
+        "los hijos del páramo",
+        "neón sur",
+        "la casa de los mil pasos",
+        "órbita 9",
+        "sipderman",
+    }
+    with get_db() as con:
+        if con.execute("SELECT 1 FROM migraciones WHERE nombre = ?", (migration_name,)).fetchone():
+            return
+
+        row = con.execute("SELECT datos FROM contenido WHERE seccion = 'films'").fetchone()
+        if row:
+            films = json.loads(row["datos"])
+            if any(
+                str(film.get("title", "")).strip().casefold() in peliculas_falsas
+                for film in films
+            ):
+                con.execute(
+                    "UPDATE contenido SET datos = ? WHERE seccion = 'films'",
+                    (json.dumps(CONTENIDO["films"], ensure_ascii=False),),
+                )
+
+        con.execute("INSERT INTO migraciones (nombre) VALUES (?)", (migration_name,))
+
+
 init_db()
 sembrar_contenido_inicial()
+migrar_peliculas_de_ejemplo()
 
 @app.route("/api/contenido", methods=["GET"])
 def contenido():
@@ -395,9 +430,21 @@ def admin_obtener_ventas():
 def admin_agregar_pelicula():
     if not es_admin():
         return jsonify({"error": "Acceso denegado"}), 403
-    data = get_json_object()
+    data = request.form.to_dict() if request.mimetype == "multipart/form-data" else get_json_object()
     if not data or not data.get("title"):
         return jsonify({"error": "Datos de película incompletos"}), 400
+
+    poster_file = request.files.get("poster")
+    if poster_file and poster_file.filename:
+        extension = Path(poster_file.filename).suffix.lower()
+        if extension not in ALLOWED_POSTER_EXTENSIONS:
+            return jsonify({"error": "Usa una imagen JPG, PNG o WebP."}), 400
+        POSTER_DIR.mkdir(parents=True, exist_ok=True)
+        poster_name = f"{secrets.token_hex(12)}{extension}"
+        poster_file.save(POSTER_DIR / poster_name)
+        data["poster"] = f"/static/images/posters/{poster_name}"
+    else:
+        data["poster"] = None
 
     contenido_actual = cargar_contenido()
     films = contenido_actual.get("films", [])
