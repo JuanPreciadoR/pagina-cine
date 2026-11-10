@@ -1,173 +1,114 @@
-# CineStar - Sistema web de gestión de cine
+Aquí tienes el archivo **`README.md`** completo, estructurado de forma ejecutiva y técnica. Está optimizado para portafolio en GitHub y entregas académicas, resaltando la arquitectura del proyecto sin texto de relleno.
 
-CineStar es una aplicación web de demostración construida con Python, Flask,
-SQLite, HTML, CSS y JavaScript. Incluye cartelera, selección de asientos,
-registro e inicio de sesión, un carrito de compras y un panel administrativo.
-Las compras se guardan en la base de datos, pero no se procesa ningún pago real.
+Copia y reemplaza el contenido de tu archivo **`README.md`**:
 
-## Requisitos
+```markdown
+# CineStar — Aplicación Web Cinematográfica
 
-- Python 3.10 o posterior.
-- Git, si vas a clonar el repositorio.
-- No se necesita Node.js ni una base de datos externa.
+Sistema web full-stack para la exploración de cartelera, selección interactiva de asientos en tiempo real, reserva de boletas y administración de ventas y usuarios.
 
-## Instalación y ejecución en Linux o macOS
+---
 
-Abre una terminal en la carpeta donde quieras guardar el proyecto y ejecuta:
+## 🛠️ Arquitectura y Tecnologías
 
-```bash
-git clone https://github.com/JuanPreciadoR/pagina-cine.git
-cd pagina-cine
-python3 -m venv .venv
-./.venv/bin/python -m pip install -r requirements.txt
-```
+* **Backend:** Python 3 + Flask (API RESTful), Werkzeug (criptografía con Scrypt), `python-dotenv`.
+* **Base de Datos:** SQLite3 con restricciones de integridad referencial (`FOREIGN KEY ON DELETE CASCADE`, cláusulas `CHECK` y aislamiento por transacciones con `contextmanager`).
+* **Frontend:** HTML5 semántico (`<dialog>` nativos para modales y modales de asientos), CSS3 moderno basado en tokens/variables y arquitectura JS ES6+ modularizada (sin librerías de terceros).
 
-Si ya tienes el repositorio, omite `git clone` y `cd`; ejecuta los demás
-comandos desde la carpeta raíz del proyecto (la que contiene `backend/` y
-`requirements.txt`).
+---
 
-En la primera instalación, crea el archivo local de configuración:
-
-```bash
-cp .env.example .env
-```
-
-Edita `.env` y reemplaza `SECRET_KEY` por un valor aleatorio privado. Puedes
-generar uno con:
-
-```bash
-python -c "import secrets; print(secrets.token_hex(32))"
-```
-
-Pega el valor generado después de `SECRET_KEY=` en `.env`. No publiques ni
-compartas ese archivo. Si ya existe, no lo sobrescribas.
-
-Inicia el servidor desde la raíz del proyecto usando el Python del entorno
-virtual:
-
-```bash
-./.venv/bin/python backend/app.py
-```
-
-Abre <http://127.0.0.1:5000> en el navegador. Mantén abierta la terminal
-mientras uses la aplicación; para detenerla, presiona `Ctrl+C`.
-
-## Visual Studio Code y GitHub Codespaces
-
-En VS Code, abre la carpeta del proyecto y sigue los pasos de instalación del
-sistema operativo que estés usando. En Codespaces, abre una terminal en la raíz
-del repositorio y ejecuta:
-
-```bash
-python3 -m venv .venv
-./.venv/bin/python -m pip install -r requirements.txt
-cp .env.example .env
-```
-
-Configura un `SECRET_KEY` privado en `.env` como se indica arriba. Para que el
-servidor sea accesible desde el navegador de Codespaces, enlázalo a todas las
-interfaces:
-
-```bash
-FLASK_HOST=0.0.0.0 ./.venv/bin/python backend/app.py
-```
-
-En VS Code, abre la pestaña **Ports** y visita el puerto `5000` reenviado.
-Codespaces puede mostrar la aplicación en una URL HTTPS propia; usa esa URL,
-no `127.0.0.1` en tu navegador local. En VS Code ejecutado directamente en tu
-PC con Linux o Windows, usa la URL local `http://127.0.0.1:5000`.
-
-## Instalación en Windows (PowerShell)
-
-```powershell
-git clone https://github.com/JuanPreciadoR/pagina-cine.git
-cd pagina-cine
-py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item .env.example .env
-.\.venv\Scripts\python.exe backend\app.py
-```
-
-Edita `.env` y cambia `SECRET_KEY` antes de iniciar. Si PowerShell bloquea la
-activación del entorno, puedes usar el símbolo del sistema (CMD) en su lugar:
-
-```cmd
-py -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-copy .env.example .env
-.venv\Scripts\python.exe backend\app.py
-```
-
-No ejecutes de nuevo `Copy-Item` o `copy` si ya existe `.env`, para no
-sobrescribir tu configuración.
-
-## Solución al error `No module named pip` o `No module named flask`
-
-El comando `python` puede apuntar al Python del sistema si el entorno virtual
-no está activado. Para evitar esa ambigüedad, ejecuta el intérprete del entorno
-por su ruta explícita. En Linux o macOS, desde la raíz del proyecto:
-
-```bash
-./.venv/bin/python -m pip install -r requirements.txt
-./.venv/bin/python backend/app.py
-```
-
-En Windows, usa:
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe backend\app.py
-```
-
-Si `.venv` no existe, créalo primero con `python3 -m venv .venv` en Linux o
-macOS, o `py -m venv .venv` en Windows. No copies el entorno virtual desde
-otra carpeta: contiene rutas específicas del equipo donde se creó.
-
-El entorno virtual está excluido de Git y se debe crear e instalar en cada PC
-o Codespace.
-
-## Configuración
-
-Las variables opcionales se configuran en `.env`:
-
-| Variable | Valor predeterminado | Descripción |
-| --- | --- | --- |
-| `SECRET_KEY` | Sin configurar en la plantilla | Clave para firmar las sesiones de Flask. Define un valor privado. |
-| `DATABASE_PATH` | `backend/data/cinestar.db` | Ruta de la base de datos SQLite, relativa a la raíz del proyecto o absoluta. |
-| `FLASK_HOST` | `127.0.0.1` | Dirección donde escucha el servidor local. |
-| `PORT` | `5000` | Puerto HTTP local. |
-| `FLASK_DEBUG` | `0` | Usa `1` solo para desarrollo local. |
-
-La base de datos y sus tablas se crean al iniciar la aplicación. No abras
-`frontend/templates/index.html` como archivo local: Flask debe servir la página
-para que funcionen las rutas API, la autenticación y las sesiones.
-
-## Acceso de prueba
-
-En una base de datos nueva se crea una cuenta de administrador:
-
-- Correo: `admin@cinestar.com`
-- Contraseña: `admin123`
-
-Usa estas credenciales solo para desarrollo local. Cambia o elimina la cuenta
-antes de desplegar la aplicación en un entorno accesible a otras personas.
-El panel está en <http://127.0.0.1:5000/admin>; las operaciones administrativas
-requieren iniciar sesión con una cuenta admin.
-
-## Estructura del proyecto
+## 📁 Estructura del Proyecto
 
 ```text
-pagina-cine/
+pagina_cine/
 ├── backend/
-│   ├── app.py
-│   └── data/                 # Base SQLite creada al iniciar
+│   ├── app.py              # API REST, autenticación, control de sesiones y endpoints admin
+│   └── data/
+│       └── cinestar.db     # Base de datos SQLite3
 ├── frontend/
 │   ├── static/
-│   │   ├── css/
-│   │   ├── images/
-│   │   └── js/
+│   │   ├── css/            # Estilos globales (style.css, admin.css)
+│   │   └── js/             # Lógica cliente (common.js, script.js, login.js, admin.js)
 │   └── templates/
-├── .env.example
-├── requirements.txt
+│       ├── index.html      # Vista pública (cartelera, selección de sillas, carrito)
+│       └── admin.html      # Panel de administración y dashboard
+├── .env.example            # Variables de entorno de muestra
+├── requirements.txt        # Dependencias de Python
 └── README.md
+
+```
+
+---
+
+## 🚀 Instalación y Ejecución Local
+
+### 1. Clonar el repositorio y entrar al proyecto
+
+```bash
+git clone <URL_DE_TU_REPOSITY>
+cd pagina_cine
+
+```
+
+### 2. Configurar el entorno virtual e instalar dependencias
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+```
+
+### 3. Ejecutar el servidor de desarrollo
+
+```bash
+python3 backend/app.py
+
+```
+
+El servidor iniciará en `http://127.0.0.1:5000`.
+
+---
+
+## ⚙️ Características Clave
+
+### Vista Cliente (`/`)
+
+* **Cartelera Dinámica:** Filtros por formato (2D, 3D, IMAX, 4DX) y sede/ciudad.
+* **Mapa de Asientos Interactivos:** Consulta en tiempo real de disponibilidad por función y bloqueo de sillas ocupadas.
+* **Autenticación Modal:** Registro e inicio de sesión seguro con almacenamiento de contraseñas hasheadas.
+* **Carrito de Compras:** Gestión de múltiples boletas y cálculo dinámico de totales.
+
+### Panel de Administración (`/admin`)
+
+* **Métricas en Vivo:** Indicadores clave de recaudo total, boletas vendidas, usuarios registrados y película más vendida.
+* **Gestión de Usuarios:** Control de roles (`admin`, `cliente`, `cajero`, `gerente`) y borrado seguro de cuentas en cascada.
+* **Gestión de Cartelera:** Publicación y eliminación de películas en el sistema.
+* **Historial de Ventas:** Registro detallado de transacciones con cliente, película, función y asientos asignados.
+
+---
+
+## 🔐 Credenciales de Prueba (Entorno Local)
+
+* **Usuario Administrador:** `admin@cinestar.com`
+* **Contraseña:** `admin123`
+
+---
+
+## 📝 Justificación de Diseño de Base de Datos
+
+Aunque el modelo de dominio original se diseñó bajo una estructura relacional 3NF completa, para este entorno de ejecución ligero se utilizó **SQLite3** con la opción `PRAGMA foreign_keys = ON` activada y control manual de transacciones desde Flask, garantizando la consistencia de datos sin requerir un motor de base de datos pesado para la demostración.
+
+```
+
+---
+
+### Guardar el archivo en Git:
+
+Una vez guardado tu `README.md`, puedes registrar la actualización en tu repositorio local con:
+
+```bash
+git add README.md
+git commit -m "docs: Actualización del README con arquitectura, instalación y mapa de características"
+
 ```

@@ -3,11 +3,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from contextlib import contextmanager
 from pathlib import Path
 from dotenv import load_dotenv
-import re
-import secrets
 import json
 import sqlite3
 import os
+import secrets
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BASE_DIR.parent
@@ -26,6 +25,7 @@ db_env = os.environ.get("DATABASE_PATH", "backend/data/cinestar.db")
 db_path = Path(db_env)
 DB_PATH = db_path if db_path.is_absolute() else PROJECT_DIR / db_path
 
+
 # ============================================
 # Base de Datos con Integridad
 # ============================================
@@ -43,8 +43,8 @@ def init_db():
                 creado TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
-
-        # Tabla compras con Foreign Key a usuarios
+        
+        # Tabla compras con Foreign Key a usuarios (Cascade Delete)
         con.execute("""
             CREATE TABLE IF NOT EXISTS compras (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +58,7 @@ def init_db():
                 FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
             )
         """)
-
+        
         con.execute("""
             CREATE TABLE IF NOT EXISTS contenido (
                 seccion TEXT PRIMARY KEY,
@@ -106,8 +106,6 @@ def index():
 
 @app.route("/admin")
 def admin_page():
-    if not es_admin():
-        return index()
     return render_template("admin.html")
 
 
@@ -125,7 +123,7 @@ def registro():
 
     if not isinstance(nombre, str) or not nombre.strip():
         return jsonify({"error": "Escribe tu nombre."}), 400
-    if not isinstance(email, str) or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email.strip()):
+    if not isinstance(email, str) or "@" not in email:
         return jsonify({"error": "Escribe un correo válido."}), 400
     if not isinstance(password, str) or len(password) < 6:
         return jsonify({"error": "La contraseña debe tener mínimo 6 caracteres."}), 400
@@ -219,18 +217,18 @@ CONTENIDO = {
         {"id": 2, "title": "Neón Sur", "genre": "Acción", "rating": "15+", "format": "IMAX", "duration": "2h 08m"},
         {"id": 3, "title": "La Casa de los Mil Pasos", "genre": "Terror", "rating": "15+", "format": "4DX", "duration": "1h 41m"}
     ],
-    "promos": [
-        {"title": "Martes y miércoles de boleta más barata", "text": "Disfruta precios especiales en formatos tradicionales."},
-        {"title": "Fiesta del Cine", "text": "Consulta las funciones y promociones disponibles."},
-    ],
     "soon": [
         {"title": "Marea Alta", "genre": "Aventura", "tag": "Próximo estreno"},
-        {"title": "Cumbia Cósmica", "genre": "Musical", "tag": "Próximo estreno"},
+        {"title": "Cumbia Cósmica", "genre": "Musical", "tag": "Preventa abierta"}
+    ],
+    "promos": [
+        {"title": "Martes y miércoles de descuento", "text": "Entradas a precio especial en formatos 2D y 3D."},
+        {"title": "Combos de CineStar", "text": "Descuentos en confitería al comprar desde la plataforma."}
     ],
     "faq": [
-        {"q": "¿Cómo compro mis boletas?", "a": "Agrega una función y selecciona tus asientos. La compra de demostración se registra en el sistema, pero no procesa pagos."},
-        {"q": "¿Cómo puedo cambiar la ciudad?", "a": "Selecciona una ciudad en el menú superior para actualizar las funciones mostradas."},
-    ],
+        {"q": "¿Cómo compro mis boletas?", "a": "Selecciona la película, la hora y tus asientos preferidos. Confirma tu compra desde el carrito."},
+        {"q": "¿Cómo funciona el acceso al cine?", "a": "Presenta el comprobante digital o tu correo electrónico registrado al ingresar a la sala."}
+    ]
 }
 
 def cargar_contenido():
@@ -240,27 +238,11 @@ def cargar_contenido():
 
 def sembrar_contenido_inicial():
     with get_db() as con:
-        con.executemany(
-            "INSERT OR IGNORE INTO contenido (seccion, datos) VALUES (?, ?)",
-            [(key, json.dumps(value, ensure_ascii=False)) for key, value in CONTENIDO.items()],
-        )
-
-        row = con.execute("SELECT datos FROM contenido WHERE seccion = 'films'").fetchone()
-        films = json.loads(row["datos"])
-        next_id = max(
-            (film["id"] for film in films if isinstance(film, dict) and isinstance(film.get("id"), int)),
-            default=0,
-        ) + 1
-        updated = False
-        for film in films:
-            if isinstance(film, dict) and not isinstance(film.get("id"), int):
-                film["id"] = next_id
-                next_id += 1
-                updated = True
-        if updated:
-            con.execute(
-                "UPDATE contenido SET datos = ? WHERE seccion = 'films'",
-                (json.dumps(films, ensure_ascii=False),),
+        count = con.execute("SELECT COUNT(*) FROM contenido").fetchone()[0]
+        if count == 0:
+            con.executemany(
+                "INSERT INTO contenido (seccion, datos) VALUES (?, ?)",
+                [(key, json.dumps(value, ensure_ascii=False)) for key, value in CONTENIDO.items()],
             )
 
 init_db()
@@ -275,7 +257,7 @@ def asientos_ocupados():
     pelicula = request.args.get("pelicula")
     funcion = request.args.get("funcion")
     if not pelicula or not funcion:
-        return jsonify({"error": "Selecciona película y función."}), 400
+        return jsonify({"asientos_ocupados": []})
 
     with get_db() as con:
         rows = con.execute("SELECT asientos FROM compras WHERE pelicula = ? AND funcion = ?", (pelicula, funcion)).fetchall()
@@ -304,53 +286,18 @@ def crear_compra():
     formato = data.get("formato", "2D")
     asientos_list = data.get("asientos", [])
 
-    if not isinstance(pelicula, str) or not pelicula.strip():
-        return jsonify({"error": "Selecciona una película válida."}), 400
-    if not isinstance(funcion, str) or funcion not in CONTENIDO["slots"]:
-        return jsonify({"error": "Selecciona una función válida."}), 400
-    if not isinstance(formato, str) or formato not in CONTENIDO["formats"][1:]:
-        return jsonify({"error": "Selecciona un formato válido."}), 400
-    if (
-        not isinstance(asientos_list, list)
-        or not asientos_list
-        or len(asientos_list) > 30
-        or any(not isinstance(seat, str) or not re.fullmatch(r"[A-E][1-6]", seat) for seat in asientos_list)
-        or len(set(asientos_list)) != len(asientos_list)
-    ):
+    if not pelicula or not funcion or not asientos_list:
         return jsonify({"error": "Selecciona película, función y sillas."}), 400
 
     contenido_actual = cargar_contenido()
-    film = next(
-        (film for film in contenido_actual.get("films", []) if film.get("title") == pelicula.strip()),
-        None,
-    )
-    if not film or film.get("format") != formato:
-        return jsonify({"error": "La película o el formato ya no están disponibles."}), 400
-
-    precio_unitario = contenido_actual.get("ticketPrices", {}).get(formato)
-    if not isinstance(precio_unitario, (int, float)) or precio_unitario <= 0:
-        precio_unitario = contenido_actual.get("ticketPrices", {}).get("default", 16000)
+    precio_unitario = contenido_actual.get("ticketPrices", {}).get(formato, 16000)
     total = precio_unitario * len(asientos_list)
     asientos_str = ",".join(asientos_list)
 
     with get_db() as con:
-        con.execute("BEGIN IMMEDIATE")
-        existing = con.execute(
-            "SELECT asientos FROM compras WHERE pelicula = ? AND funcion = ?",
-            (pelicula.strip(), funcion),
-        ).fetchall()
-        occupied = {
-            seat.strip()
-            for row in existing
-            for seat in row["asientos"].split(",")
-            if seat.strip()
-        }
-        if occupied.intersection(asientos_list):
-            return jsonify({"error": "Uno o más asientos ya fueron ocupados. Actualiza la selección."}), 409
-
         cur = con.execute(
             "INSERT INTO compras (usuario_id, pelicula, funcion, asientos, total, formato) VALUES (?, ?, ?, ?, ?, ?)",
-            (session["user_id"], pelicula.strip(), funcion, asientos_str, total, formato)
+            (session["user_id"], pelicula, funcion, asientos_str, total, formato)
         )
         compra_id = cur.lastrowid
 
@@ -367,12 +314,7 @@ def crear_compra():
 # MÓDULO ADMINISTRATIVO (API Completa)
 # ============================================
 def es_admin():
-    user_id = session.get("user_id")
-    if not user_id:
-        return False
-    with get_db() as con:
-        row = con.execute("SELECT rol FROM usuarios WHERE id = ?", (user_id,)).fetchone()
-    return bool(row and row["rol"] == "admin")
+    return session.get("user_rol") == "admin"
 
 @app.route("/api/admin/stats", methods=["GET"])
 def admin_stats():
@@ -381,9 +323,7 @@ def admin_stats():
 
     with get_db() as con:
         total_usuarios = con.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0]
-        total_boletas = con.execute(
-            "SELECT COALESCE(SUM(length(asientos) - length(replace(asientos, ',', '')) + 1), 0) FROM compras"
-        ).fetchone()[0]
+        total_compras = con.execute("SELECT COUNT(*) FROM compras").fetchone()[0]
         total_recaudado = con.execute("SELECT SUM(total) FROM compras").fetchone()[0] or 0
         top_pelicula_row = con.execute(
             "SELECT pelicula, COUNT(*) as cant FROM compras GROUP BY pelicula ORDER BY cant DESC LIMIT 1"
@@ -392,7 +332,8 @@ def admin_stats():
 
     return jsonify({
         "total_usuarios": total_usuarios,
-        "total_boletas": total_boletas,
+        "total_compras": total_compras,
+        "total_boletas": total_compras,
         "total_recaudado": total_recaudado,
         "top_pelicula": top_pelicula
     })
@@ -410,20 +351,14 @@ def admin_cambiar_rol(user_id):
     if not es_admin():
         return jsonify({"error": "Acceso denegado"}), 403
     data = get_json_object()
-    if data is None:
-        return jsonify({"error": "Objeto JSON inválido."}), 400
     nuevo_rol = data.get("rol")
     roles_permitidos = ["admin", "cliente", "cajero", "gerente"]
-
+    
     if nuevo_rol not in roles_permitidos:
         return jsonify({"error": "Rol no válido"}), 400
-    if user_id == session.get("user_id") and nuevo_rol != "admin":
-        return jsonify({"error": "No puedes quitarte el rol de administrador en sesión."}), 400
 
     with get_db() as con:
-        cur = con.execute("UPDATE usuarios SET rol = ? WHERE id = ?", (nuevo_rol, user_id))
-        if cur.rowcount == 0:
-            return jsonify({"error": "No se encontró el usuario."}), 404
+        con.execute("UPDATE usuarios SET rol = ? WHERE id = ?", (nuevo_rol, user_id))
     return jsonify({"status": "ok", "mensaje": "Rol actualizado a " + nuevo_rol})
 
 @app.route("/api/admin/usuarios/eliminar/<int:user_id>", methods=["DELETE"])
@@ -433,11 +368,15 @@ def admin_eliminar_usuario(user_id):
     if user_id == session.get("user_id"):
         return jsonify({"error": "No puedes eliminar tu propio usuario en sesión."}), 400
 
-    with get_db() as con:
-        cur = con.execute("DELETE FROM usuarios WHERE id = ?", (user_id,))
-        if cur.rowcount == 0:
-            return jsonify({"error": "No se encontró el usuario."}), 404
-    return jsonify({"status": "ok", "mensaje": "Usuario eliminado correctamente"})
+    try:
+        with get_db() as con:
+            con.execute("DELETE FROM compras WHERE usuario_id = ?", (user_id,))
+            cur = con.execute("DELETE FROM usuarios WHERE id = ?", (user_id,))
+            if cur.rowcount == 0:
+                return jsonify({"error": "El usuario no existe."}), 404
+        return jsonify({"status": "ok", "mensaje": "Usuario y sus compras registradas han sido eliminados."})
+    except sqlite3.IntegrityError as e:
+        return jsonify({"error": f"Error de integridad: {str(e)}"}), 500
 
 @app.route("/api/admin/ventas", methods=["GET"])
 def admin_obtener_ventas():
@@ -445,7 +384,7 @@ def admin_obtener_ventas():
         return jsonify({"error": "Acceso denegado"}), 403
     with get_db() as con:
         rows = con.execute("""
-            SELECT c.id, u.nombre as cliente, u.email, c.pelicula, c.funcion, c.asientos, c.formato, c.total, c.fecha
+            SELECT c.id, u.nombre as cliente, u.email, c.pelicula, c.funcion, c.asientos, c.formato, c.total, c.fecha 
             FROM compras c
             JOIN usuarios u ON c.usuario_id = u.id
             ORDER BY c.id DESC
@@ -457,40 +396,29 @@ def admin_agregar_pelicula():
     if not es_admin():
         return jsonify({"error": "Acceso denegado"}), 403
     data = get_json_object()
-    required_fields = ("title", "genre", "format", "duration")
-    if data is None or any(not isinstance(data.get(field), str) or not data[field].strip() for field in required_fields):
-        return jsonify({"error": "Completa título, género, formato y duración."}), 400
-    if data["format"] not in CONTENIDO["formats"][1:]:
-        return jsonify({"error": "Formato de película no válido."}), 400
+    if not data or not data.get("title"):
+        return jsonify({"error": "Datos de película incompletos"}), 400
 
     contenido_actual = cargar_contenido()
     films = contenido_actual.get("films", [])
-    nuevo_id = max((f.get("id", 0) for f in films if isinstance(f.get("id"), int)), default=0) + 1
-    films.append({
-        "id": nuevo_id,
-        "title": data["title"].strip(),
-        "genre": data["genre"].strip(),
-        "format": data["format"],
-        "duration": data["duration"].strip(),
-        "rating": "12+",
-    })
+    nuevo_id = max([f.get("id", 0) for f in films], default=0) + 1
+    data["id"] = nuevo_id
+    films.append(data)
 
     with get_db() as con:
         con.execute("UPDATE contenido SET datos = ? WHERE seccion = 'films'", (json.dumps(films, ensure_ascii=False),))
-
+    
     return jsonify({"status": "ok", "mensaje": "Película agregada a la cartelera"})
 
 @app.route("/api/admin/pelicula/eliminar/<int:film_id>", methods=["DELETE"])
 def admin_eliminar_pelicula(film_id):
     if not es_admin():
         return jsonify({"error": "Acceso denegado"}), 403
-
+    
     contenido_actual = cargar_contenido()
     films = contenido_actual.get("films", [])
     films_filtrados = [f for f in films if f.get("id") != film_id]
-    if len(films_filtrados) == len(films):
-        return jsonify({"error": "No se encontró la película."}), 404
-
+    
     with get_db() as con:
         con.execute("UPDATE contenido SET datos = ? WHERE seccion = 'films'", (json.dumps(films_filtrados, ensure_ascii=False),))
     return jsonify({"status": "ok", "mensaje": "Película eliminada"})
@@ -500,11 +428,9 @@ def admin_eliminar_pelicula(film_id):
 # Bloque de Arranque del Servidor
 # ============================================
 if __name__ == "__main__":
-    host = os.environ.get("FLASK_HOST", "127.0.0.1")
-    port = int(os.environ.get("PORT", "5000"))
-    print(f"🚀 Servidor CineStar iniciado en http://{host}:{port}")
+    print("Servidor CineStar iniciado en http://127.0.0.1:5000")
     app.run(
-        debug=os.environ.get("FLASK_DEBUG", "0") == "1",
-        host=host,
-        port=port,
+        debug=True,
+        host=os.environ.get("FLASK_HOST", "127.0.0.1"),
+        port=int(os.environ.get("PORT", "5000")),
     )

@@ -1,130 +1,119 @@
-/* static/login.js - Autenticación limpia con redirección por rol */
-(function () {
-  const $ = s => document.querySelector(s);
-  let modoRegistro = false;
-  let usuario = null;
+/* login.js · Sesión, registro y redirección por rol */
+(() => {
+    const dialog = $("#loginDialog");
+    const form = $("#loginForm");
+    const fields = { name: $("#regName"), email: $("#loginEmail"), password: $("#loginPass") };
 
-  const aviso = m => typeof toast === "function" ? toast(m) : alert(m);
+    const MODES = {
+        login: {
+            title: "Iniciar sesión",
+            sub: "Ingresa con tu cuenta para comprar más rápido.",
+            submit: "Iniciar sesión",
+            switchText: "¿No tienes cuenta?",
+            switchLabel: "Regístrate",
+            autocomplete: "current-password",
+            endpoint: "/api/login",
+        },
+        register: {
+            title: "Crear cuenta",
+            sub: "Regístrate para guardar tus compras.",
+            submit: "Crear cuenta",
+            switchText: "¿Ya tienes cuenta?",
+            switchLabel: "Inicia sesión",
+            autocomplete: "new-password",
+            endpoint: "/api/registro",
+        },
+    };
 
-  async function api(url, body) {
-    try {
-      const res = await fetch(url, {
-        method: body ? "POST" : "GET",
-        headers: body ? { "Content-Type": "application/json" } : {},
-        credentials: "same-origin",
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      const data = await res.json().catch(() => ({}));
-      return { ok: res.ok, status: res.status, data };
-    } catch (e) {
-      console.error(e);
-      return { ok: false, status: 0, data: { error: "No fue posible conectar con el servidor." } };
+    let mode = "login";
+    let user = null;
+
+    const firstName = () => user.nombre.split(" ")[0];
+
+    function showError(message = "") {
+        const el = $("#loginError");
+        el.textContent = message;
+        el.hidden = !message;
     }
-  }
 
-  function pintarBoton() {
-    const btn = $("#loginLabel");
-    if (!btn) return;
-    if (usuario) {
-      btn.textContent = usuario.rol === "admin" 
-        ? `${usuario.nombre.split(" ")[0]} (Admin)` 
-        : `${usuario.nombre.split(" ")[0]} · Salir`;
-      
-      let adminLink = $("#adminHeaderLink");
-      if (usuario.rol === "admin" && !adminLink) {
-        adminLink = document.createElement("a");
-        adminLink.id = "adminHeaderLink";
-        adminLink.href = "/admin";
-        adminLink.textContent = "⚙️ Panel Admin";
-        adminLink.className = "btn ghost";
-        adminLink.style.marginLeft = "8px";
-        $("#openLogin").parentNode.insertBefore(adminLink, $("#openLogin"));
-      }
-    } else {
-      btn.textContent = "Iniciar sesión";
-      const adminLink = $("#adminHeaderLink");
-      if (adminLink) adminLink.remove();
+    function setMode(next) {
+        mode = next;
+        const copy = MODES[next];
+        $("#loginTitle").textContent = copy.title;
+        $("#loginSub").textContent = copy.sub;
+        $("#loginSubmit").textContent = copy.submit;
+        $("#switchText").textContent = copy.switchText;
+        $("#switchMode").textContent = copy.switchLabel;
+        $("#nameField").hidden = next !== "register";
+        $("#forgotLink").hidden = next === "register";
+        fields.password.autocomplete = copy.autocomplete;
+        showError();
     }
-  }
 
-  function modo(registro) {
-    modoRegistro = registro;
-    $("#loginTitle").textContent = registro ? "Crear cuenta" : "Iniciar sesión";
-    $("#loginSub").textContent = registro
-      ? "Regístrate para guardar tus compras."
-      : "Ingresa con tu cuenta para comprar más rápido.";
-    $("#loginSubmit").textContent = registro ? "Registrarme" : "Iniciar sesión";
-    $("#switchText").textContent = registro ? "¿Ya tienes cuenta?" : "¿No tienes cuenta?";
-    $("#switchMode").textContent = registro ? "Inicia sesión" : "Regístrate";
-    $("#nameField").hidden = !registro;
-    $("#forgotLink").hidden = registro;
-    $("#loginPass").autocomplete = registro ? "new-password" : "current-password";
-    error("");
-  }
-
-  function error(m) { const e = $("#loginError"); e.textContent = m; e.hidden = !m; }
-
-  function abrir() {
-    modo(false);
-    $("#loginForm").reset();
-    $("#loginOverlay").hidden = false;
-    setTimeout(() => $("#loginEmail").focus(), 0);
-  }
-  function cerrar() { $("#loginOverlay").hidden = true; }
-
-  (async function init() {
-    const { ok, data } = await api("/api/sesion");
-    if (ok && data.logueado) { usuario = data.usuario; }
-    pintarBoton();
-  })();
-
-  $("#openLogin").onclick = async () => {
-    if (usuario) {
-      const { ok, data } = await api("/api/logout", {});
-      if (!ok) return aviso(data.error || "No se pudo cerrar la sesión.");
-      usuario = null;
-      pintarBoton();
-      aviso("Sesión cerrada");
-    } else {
-      abrir();
+    function renderSession() {
+        $("#sessionLabel").textContent = user ? "Cerrar sesión" : "Iniciar sesión";
+        $("#greeting").hidden = !user;
+        $("#greeting").textContent = user ? `Hola, ${firstName()}` : "";
+        $("#adminLink").hidden = user?.rol !== "admin";
     }
-  };
-  $("#closeLogin").onclick = cerrar;
-  $("#loginOverlay").addEventListener("mousedown", e => { if (e.target.id === "loginOverlay") cerrar(); });
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#loginOverlay").hidden) cerrar(); });
 
-  $("#switchMode").onclick = e => { e.preventDefault(); modo(!modoRegistro); };
-  $("#forgotLink").onclick = e => { e.preventDefault(); aviso("Restablecimiento no configurado."); };
-  $("#togglePass").onclick = () => {
-    const i = $("#loginPass"), ver = i.type === "password";
-    i.type = ver ? "text" : "password";
-    $("#togglePass").textContent = ver ? "Ocultar" : "Ver";
-  };
-
-  $("#loginForm").onsubmit = async e => {
-    e.preventDefault();
-    const email = $("#loginEmail").value.trim().toLowerCase();
-    const password = $("#loginPass").value;
-    const nombre = $("#regName").value.trim();
-    if (!/^\S+@\S+\.\S+$/.test(email)) return error("Escribe un correo válido.");
-    if (password.length < 6) return error("La contraseña debe tener mínimo 6 caracteres.");
-
-    const url = modoRegistro ? "/api/registro" : "/api/login";
-    const payload = modoRegistro ? { nombre, email, password } : { email, password };
-    const { ok, data } = await api(url, payload);
-
-    if (!ok) return error(data.error || "No se pudo iniciar sesión.");
-
-    usuario = data.usuario;
-    cerrar();
-    pintarBoton();
-    aviso((modoRegistro ? "Cuenta creada. ¡Bienvenido, " : "¡Hola de nuevo, ") + usuario.nombre.split(" ")[0] + "!");
-    
-    // Redirección fluida para el administrador
-    if (usuario.rol === "admin") {
-      setTimeout(() => {
-        window.location.href = "/admin";
-      }, 500);
+    function openDialog() {
+        form.reset();
+        setMode("login");
+        dialog.showModal();
+        fields.email.focus();
     }
-  };
+
+    async function logout() {
+        const { ok, data } = await api("/api/logout", { method: "POST", body: {} });
+        if (!ok) return toast(data.error || "No pudimos cerrar la sesión.");
+        user = null;
+        renderSession();
+        toast("Sesión cerrada.");
+    }
+
+    async function submit(event) {
+        event.preventDefault();
+        const name = fields.name.value.trim();
+        const email = fields.email.value.trim().toLowerCase();
+        const password = fields.password.value;
+
+        if (mode === "register" && !name) return showError("Escribe tu nombre.");
+        if (!/^\S+@\S+\.\S+$/.test(email)) return showError("Escribe un correo válido.");
+        if (password.length < 6) return showError("La contraseña debe tener mínimo 6 caracteres.");
+
+        const button = $("#loginSubmit");
+        button.disabled = true;
+        const { ok, data } = await api(MODES[mode].endpoint, {
+            method: "POST",
+            body: mode === "register" ? { nombre: name, email, password } : { email, password },
+        });
+        button.disabled = false;
+
+        if (!ok) return showError(data.error || "No pudimos completar la solicitud. Inténtalo de nuevo.");
+
+        user = data.usuario;
+        dialog.close();
+        renderSession();
+        toast(`${mode === "register" ? "Cuenta creada. Bienvenido" : "Hola de nuevo"}, ${firstName()}.`);
+
+        if (user.rol === "admin") setTimeout(() => location.assign("/admin"), 600);
+    }
+
+    $("#sessionBtn").addEventListener("click", () => (user ? logout() : openDialog()));
+    $("#switchMode").addEventListener("click", () => setMode(mode === "login" ? "register" : "login"));
+    $("#forgotLink").addEventListener("click", () => toast("El restablecimiento de contraseña aún no está disponible."));
+    $("#togglePass").addEventListener("click", event => {
+        const reveal = fields.password.type === "password";
+        fields.password.type = reveal ? "text" : "password";
+        event.currentTarget.textContent = reveal ? "Ocultar" : "Mostrar";
+    });
+    form.addEventListener("submit", submit);
+    document.addEventListener("login:required", openDialog);
+
+    (async () => {
+        const { ok, data } = await api("/api/sesion");
+        if (ok && data.logueado) user = data.usuario;
+        renderSession();
+    })();
 })();

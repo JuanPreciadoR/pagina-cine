@@ -1,239 +1,269 @@
-/* static/script.js - Asientos interactivos y flujo de compra */
-const $ = s => document.querySelector(s);
-const cop = n => "$" + n.toLocaleString("es-CO");
+/* script.js · Cartelera, selección de sillas y compra */
 
-let D = null;
-let city = "Bogotá", fmt = "Todos", cart = [];
-let funcionSeleccionada = null;
+const SEAT_ROWS = ["A", "B", "C", "D", "E"];
+const SEAT_COLUMNS = 6;
+const AISLE_BEFORE_COLUMN = 4;
 
-function setTema(t) {
-  document.documentElement.setAttribute("data-tema", t);
-  try { localStorage.setItem("CineStar-tema", t); } catch (e) {}
-  $("#themeBtn").textContent = t === "oscuro" ? "☀ Modo claro" : "☾ Modo oscuro";
-}
-$("#themeBtn").onclick = () => setTema(
-  document.documentElement.getAttribute("data-tema") === "oscuro" ? "claro" : "oscuro"
-);
-setTema(document.documentElement.getAttribute("data-tema") || "oscuro");
+const state = { data: null, city: "Bogotá", format: "Todos", cart: [] };
+const seatPicker = { film: null, time: null, format: null, selected: new Set(), request: 0 };
 
-const price = f => D.ticketPrices[f] || D.ticketPrices.default;
-const timeBtn = (f, s) => `<button class="t" data-film="${f.title}" data-time="${s}" data-format="${f.format}">${s}</button>`;
-const ang = i => `${140 + (i % 5) * 18}deg`;
+const seatDialog = $("#seatDialog");
+const cartDialog = $("#cartDialog");
 
+const price = format => state.data.ticketPrices[format] ?? state.data.ticketPrices.default;
+const hue = seed => (seed * 47 + 205) % 360;
+const plural = (n, one, many) => (n === 1 ? one : many);
+const isSameFunction = line =>
+  line.pelicula === seatPicker.film && line.funcion === seatPicker.time && line.formato === seatPicker.format;
+
+/* ---------- Plantillas ---------- */
+const slotButton = (film, slot) => `
+  <button class="slot" type="button" data-action="pick-seats"
+    data-film="${esc(film.title)}" data-format="${esc(film.format)}" data-time="${esc(slot)}"
+    aria-label="${esc(film.title)}, ${esc(film.format)}, función de las ${esc(slot)}">${esc(slot)}</button>`;
+
+const posterCard = ({ seed, title, chips, meta, footer }) => `
+  <article class="film" style="--hue:${hue(seed)}">
+    <div class="poster">
+      <div class="chips">${chips.map(chip => `<span class="chip">${esc(chip)}</span>`).join("")}</div>
+      <h3>${esc(title)}</h3>
+    </div>
+    <div class="film-info">
+      <p class="meta">${esc(meta)}</p>
+      ${footer}
+    </div>
+  </article>`;
+
+const emptyState = (message, actionHtml) =>
+  `<div class="empty"><p>${esc(message)}</p>${actionHtml}</div>`;
+
+/* ---------- Render ---------- */
 function renderBoard() {
-  $("#boardCity").textContent = city;
-  const sedes = D.cities[city];
-  $("#board").innerHTML = D.films.slice(0, 4).map((f, i) =>
-    `<div class="row"><div><strong>${f.title}</strong><small>${sedes[i % sedes.length]} · ${f.format}</small></div>
-    <div class="times">${D.slots.slice(i % 3, i % 3 + 2).map(s => timeBtn(f, s)).join("")}</div></div>`
-  ).join("");
+  const { films, slots, cities } = state.data;
+  const venues = cities[state.city];
+  $("#boardCity").textContent = state.city;
+  $("#board").innerHTML = films.length
+    ? films.slice(0, 4).map((film, i) => `
+        <div class="board-row">
+          <div>
+            <strong>${esc(film.title)}</strong>
+            <p class="meta">${esc(venues[i % venues.length])}, ${esc(film.format)}</p>
+          </div>
+          <div class="slots">${slots.slice(i % 3, (i % 3) + 2).map(slot => slotButton(film, slot)).join("")}</div>
+        </div>`).join("")
+    : '<p class="meta">No hay funciones programadas por ahora.</p>';
+}
+
+function renderFilters() {
+  $("#formatFilters").innerHTML = state.data.formats.map(format => `
+    <button class="filter" type="button" data-action="filter" data-format="${esc(format)}"
+      aria-pressed="${format === state.format}">${esc(format)}</button>`).join("");
+}
+
+function syncFilters() {
+  document.querySelectorAll(".filter").forEach(button =>
+    button.setAttribute("aria-pressed", button.dataset.format === state.format));
 }
 
 function renderFilms() {
-  $("#fmt").innerHTML = D.formats.map(x =>
-    `<button class="tab" aria-pressed="${x === fmt}" data-fmt="${x}">${x}</button>`
-  ).join("");
-  const list = D.films.filter(f => fmt === "Todos" || f.format === fmt);
-  $("#films").innerHTML = list.length
-    ? list.map((f, i) => `<article class="film"><div class="poster" style="--ang:${ang(i)}"><em>${f.rating} · ${f.format}</em>${f.title}</div>
-      <h3>${f.title}</h3><div class="meta">${f.genre} · ${f.duration}</div>
-      <div class="times">${D.slots.slice(0, 4).map(s => timeBtn(f, s)).join("")}</div></article>`).join("")
-    : '<p class="meta">No hay funciones en este formato hoy.</p>';
+  const { films, slots } = state.data;
+  const visible = films.filter(film => state.format === "Todos" || film.format === state.format);
+
+  $("#films").innerHTML = visible.length
+    ? visible.map((film, i) => posterCard({
+        seed: film.id ?? i,
+        title: film.title,
+        chips: [film.rating, film.format],
+        meta: `${film.genre}, ${film.duration}`,
+        footer: `<div class="slots">${slots.map(slot => slotButton(film, slot)).join("")}</div>`,
+      })).join("")
+    : emptyState(
+        `No hay funciones en formato ${state.format}.`,
+        '<button class="btn ghost" type="button" data-action="filter" data-format="Todos">Ver todos los formatos</button>'
+      );
+}
+
+function renderStaticSections() {
+  const { promos, soon, faq } = state.data;
+
+  $("#promoList").innerHTML = promos.map(promo => `
+    <article class="promo"><h3>${esc(promo.title)}</h3><p>${esc(promo.text)}</p></article>`).join("");
+
+  $("#soon").innerHTML = soon.map((item, i) => posterCard({
+    seed: i,
+    title: item.title,
+    chips: [item.tag],
+    meta: item.genre,
+    footer: `<button class="btn ghost sm" type="button" data-action="notify" data-title="${esc(item.title)}">Avísame</button>`,
+  })).join("");
+
+  $("#faq").innerHTML = faq.map(item => `
+    <details><summary>${esc(item.q)}</summary><p>${esc(item.a)}</p></details>`).join("");
 }
 
 function drawCart() {
-  $("#count").textContent = cart.length;
-  $("#items").innerHTML = cart.length
-    ? cart.map((c, i) => `<div class="item"><span>${c.pelicula} (${c.formato})<br><small>${c.funcion} - Sillas: ${c.asientos.join(", ")}</small></span>
-        <span>${cop(price(c.formato) * c.asientos.length)} <button data-del="${i}" aria-label="Quitar">✕</button></span></div>`).join("")
-    : '<p class="meta">Aún no has seleccionado funciones.</p>';
-  
-  const subtotal = cart.reduce((a, c) => a + (price(c.formato) * c.asientos.length), 0);
-  $("#total").textContent = "Total " + cop(subtotal);
+  const tickets = state.cart.reduce((sum, line) => sum + line.asientos.length, 0);
+  const total = state.cart.reduce((sum, line) => sum + price(line.formato) * line.asientos.length, 0);
+
+  $("#count").textContent = tickets;
+  $("#total").textContent = cop(total);
+  $("#pay").disabled = !state.cart.length;
+  $("#cartItems").innerHTML = state.cart.length
+    ? state.cart.map((line, i) => `
+        <li class="cart-item">
+          <div>
+            <strong>${esc(line.pelicula)}</strong>
+            <p class="meta">${esc(line.formato)}, función de las ${esc(line.funcion)}</p>
+            <p class="meta">${plural(line.asientos.length, "Silla", "Sillas")} ${line.asientos.join(", ")}</p>
+          </div>
+          <div class="cart-item-side">
+            <span>${cop(price(line.formato) * line.asientos.length)}</span>
+            <button class="link" type="button" data-action="remove" data-index="${i}"
+              aria-label="Quitar ${esc(line.pelicula)} de la compra">Quitar</button>
+          </div>
+        </li>`).join("")
+    : '<li class="meta">Aún no has elegido sillas. Escoge una función para empezar.</li>';
 }
 
-function toast(m) {
-  const t = $("#toast");
-  t.textContent = m; t.style.display = "block";
-  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 2600);
+/* ---------- Selección de sillas ---------- */
+function updateSeatSummary() {
+  const seats = [...seatPicker.selected].sort();
+  const total = seats.length * price(seatPicker.format);
+  $("#seatSummary").textContent = seats.length
+    ? `${plural(seats.length, "Silla elegida", "Sillas elegidas")}: ${seats.join(", ")}. Total ${cop(total)}`
+    : "Elige al menos una silla.";
+  $("#confirmSeats").disabled = !seats.length;
 }
 
-/* MODAL DE ASIENTOS */
-async function abrirModalAsientos(pelicula, funcion, formato) {
-  funcionSeleccionada = { pelicula, funcion, formato, seleccionados: [] };
-  
-  let seatModal = $("#seatModal");
-  if (!seatModal) {
-    seatModal = document.createElement("div");
-    seatModal.id = "seatModal";
-    seatModal.className = "login-overlay";
-    seatModal.innerHTML = `
-      <div class="login-modal" style="width:min(480px, 100%); text-align:center;">
-        <button class="login-close" id="closeSeats">✕</button>
-        <h2 id="seatModalTitle">Selecciona tus asientos</h2>
-        <p class="login-sub" id="seatModalSub"></p>
-        <div style="background:var(--line); color:var(--mute); margin:15px 0; padding:6px; border-radius:6px; font-size:0.8rem; font-weight:bold;">PANTALLA</div>
-        <div id="seatsGrid" style="display:grid; grid-template-columns:repeat(6, 1fr); gap:8px; margin:20px 0;"></div>
-        <button class="btn" id="confirmSeats" style="width:100%;">Confirmar Selección</button>
-      </div>`;
-    document.body.appendChild(seatModal);
-    $("#closeSeats").onclick = () => seatModal.hidden = true;
-  }
-  
-  $("#seatModalTitle").textContent = pelicula;
-  $("#seatModalSub").textContent = `Función: ${funcion} (${formato})`;
-  seatModal.hidden = false;
+function renderSeatMap(taken) {
+  const inCart = new Set(state.cart.find(isSameFunction)?.asientos);
+  const columns = Array.from({ length: SEAT_COLUMNS }, (_, i) => i + 1);
 
-  let ocupados = [];
-  try {
-    const res = await fetch(`/api/asientos-ocupados?pelicula=${encodeURIComponent(pelicula)}&funcion=${encodeURIComponent(funcion)}`);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "No se pudo consultar la disponibilidad.");
-    ocupados = data.asientos_ocupados || [];
-  } catch (e) {
-    console.error(e);
-    seatModal.hidden = true;
-    toast(e.message || "No fue posible consultar los asientos.");
-    return;
-  }
-
-  const filas = ["A", "B", "C", "D", "E"];
-  let gridHTML = "";
-  filas.forEach(f => {
-    for (let c = 1; c <= 6; c++) {
-      const code = `${f}${c}`;
-      const isOcupado = ocupados.includes(code);
-      gridHTML += `<button class="seat-btn ${isOcupado ? 'occupied' : ''}" data-seat="${code}" ${isOcupado ? 'disabled' : ''} style="padding:8px; border-radius:6px; border:1px solid var(--line); background:${isOcupado ? '#ff6b6b' : 'var(--bg2)'}; color:var(--ink);">${code}</button>`;
-    }
-  });
-  $("#seatsGrid").innerHTML = gridHTML;
-
-  document.querySelectorAll(".seat-btn:not(.occupied)").forEach(btn => {
-    btn.onclick = () => {
-      const code = btn.dataset.seat;
-      if (funcionSeleccionada.seleccionados.includes(code)) {
-        funcionSeleccionada.seleccionados = funcionSeleccionada.seleccionados.filter(s => s !== code);
-        btn.style.background = "var(--bg2)";
-      } else {
-        funcionSeleccionada.seleccionados.push(code);
-        btn.style.background = "var(--accent)";
-      }
-    };
-  });
-
-  $("#confirmSeats").onclick = () => {
-    if (!funcionSeleccionada.seleccionados.length) return toast("Selecciona al menos un asiento.");
-    const sameFunction = cart.find(item =>
-      item.pelicula === funcionSeleccionada.pelicula &&
-      item.funcion === funcionSeleccionada.funcion &&
-      item.formato === funcionSeleccionada.formato
-    );
-    const duplicateSeats = sameFunction
-      ? funcionSeleccionada.seleccionados.filter(seat => sameFunction.asientos.includes(seat))
-      : [];
-    if (duplicateSeats.length) {
-      return toast(`Ya agregaste estos asientos: ${duplicateSeats.join(", ")}`);
-    }
-    if (sameFunction) {
-      sameFunction.asientos.push(...funcionSeleccionada.seleccionados);
-    } else {
-      cart.push({
-        pelicula: funcionSeleccionada.pelicula,
-        funcion: funcionSeleccionada.funcion,
-        formato: funcionSeleccionada.formato,
-        asientos: [...funcionSeleccionada.seleccionados]
-      });
-    }
-    drawCart();
-    seatModal.hidden = true;
-    toast(`${funcionSeleccionada.seleccionados.length} asiento(s) agregados`);
+  const seat = code => {
+    const isTaken = taken.has(code);
+    const isMine = inCart.has(code);
+    const status = isTaken ? ", ocupada" : isMine ? ", ya está en tu compra" : "";
+    return `<button class="seat${isMine ? " in-cart" : ""}" type="button" data-seat="${code}"
+      aria-pressed="false" aria-label="Silla ${code}${status}"${isTaken || isMine ? " disabled" : ""}>${code.slice(1)}</button>`;
   };
+
+  $("#seatMap").innerHTML = SEAT_ROWS.map(row => `
+    <div class="seat-row">
+      <span class="row-label" aria-hidden="true">${row}</span>
+      ${columns.map(col => (col === AISLE_BEFORE_COLUMN ? '<i aria-hidden="true"></i>' : "") + seat(`${row}${col}`)).join("")}
+    </div>`).join("");
 }
 
-/* Eventos globales */
-document.addEventListener("click", e => {
-  const b = e.target.closest("button");
-  if (!b) return;
-  if (b.dataset.film) {
-    abrirModalAsientos(b.dataset.film, b.dataset.time, b.dataset.format);
-  } else if (b.dataset.fmt) {
-    fmt = b.dataset.fmt; renderFilms();
-  } else if (b.dataset.del !== undefined) {
-    cart.splice(+b.dataset.del, 1); drawCart();
-  } else if (b.dataset.toast) {
-    toast(b.dataset.toast);
+async function openSeats({ film, time, format }) {
+  Object.assign(seatPicker, { film, time, format, request: seatPicker.request + 1 });
+  seatPicker.selected.clear();
+
+  const request = seatPicker.request;
+  $("#seatTitle").textContent = film;
+  $("#seatSub").textContent = `${format}, función de las ${time}`;
+  $("#seatMap").innerHTML = '<p class="meta">Consultando disponibilidad…</p>';
+  updateSeatSummary();
+  seatDialog.showModal();
+
+  const query = new URLSearchParams({ pelicula: film, funcion: time });
+  const { ok, data } = await api(`/api/asientos-ocupados?${query}`);
+  if (request !== seatPicker.request) return;
+
+  if (!ok) {
+    seatDialog.close();
+    return toast(data.error || "No pudimos consultar las sillas. Inténtalo de nuevo.");
   }
-});
+  renderSeatMap(new Set(data.asientos_ocupados));
+}
 
-$("#openCart").onclick = () => $("#cart").classList.add("open");
-$("#closeCart").onclick = () => $("#cart").classList.remove("open");
+function confirmSeats() {
+  const seats = [...seatPicker.selected].sort();
+  const line = state.cart.find(isSameFunction);
 
-$("#pay").onclick = async () => {
-  if (!cart.length) return toast("Tu compra está vacía");
-  const payButton = $("#pay");
-  payButton.disabled = true;
+  if (line) line.asientos.push(...seats);
+  else state.cart.push({ pelicula: seatPicker.film, funcion: seatPicker.time, formato: seatPicker.format, asientos: seats });
 
-  try {
-    while (cart.length) {
-      const item = cart[0];
-      const res = await fetch("/api/compra", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify(item),
-      });
-      const data = await res.json().catch(() => ({}));
+  drawCart();
+  seatDialog.close();
+  toast(`${seats.length} ${plural(seats.length, "silla agregada", "sillas agregadas")}.`);
+}
 
-      if (res.status === 401) {
-        $("#cart").classList.remove("open");
-        toast("Inicia sesión para completar tu compra.");
-        setTimeout(() => {
-          if ($("#loginOverlay")) $("#loginOverlay").hidden = false;
-        }, 400);
-        return;
-      }
+/* ---------- Compra ---------- */
+async function checkout() {
+  $("#pay").disabled = true;
 
-      if (!res.ok) {
-        toast(data.error || "No se pudo registrar la compra. Tu carrito se conservó.");
-        return;
-      }
+  while (state.cart.length) {
+    const { ok, status, data } = await api("/api/compra", { method: "POST", body: state.cart[0] });
 
-      cart.shift();
-      drawCart();
+    if (status === 401) {
+      cartDialog.close();
+      document.dispatchEvent(new CustomEvent("login:required"));
+      toast("Inicia sesión para completar tu compra.");
+      break;
     }
-
-    toast("¡Todas tus compras se registraron con éxito!");
-    $("#cart").classList.remove("open");
-  } catch (e) {
-    console.error(e);
-    toast("No fue posible conectar con el servidor. Se conservó lo pendiente.");
-  } finally {
-    payButton.disabled = false;
+    if (!ok) {
+      toast(data.error || "No pudimos registrar la compra. Tu selección sigue guardada.");
+      break;
+    }
+    state.cart.shift();
+    drawCart();
   }
+
+  if (!state.cart.length) {
+    cartDialog.close();
+    toast("Compra registrada. ¡Disfruta la función!");
+  }
+  drawCart();
+}
+
+/* ---------- Eventos ---------- */
+const actions = {
+  "pick-seats": el => openSeats({ film: el.dataset.film, time: el.dataset.time, format: el.dataset.format }),
+  filter: el => { state.format = el.dataset.format; syncFilters(); renderFilms(); },
+  remove: el => { state.cart.splice(Number(el.dataset.index), 1); drawCart(); },
+  notify: el => toast(`Te avisaremos del estreno de ${el.dataset.title}.`),
+  retry: () => init(),
 };
 
-(async function init() {
-  try {
-    const res = await fetch("/api/contenido", { credentials: "same-origin" });
-    D = await res.json();
-    if (!res.ok) throw new Error(D.error || "No se pudo cargar el contenido.");
+document.addEventListener("click", event => {
+  const el = event.target.closest("[data-action]");
+  if (el) actions[el.dataset.action]?.(el);
+});
 
-    $("#city").innerHTML = Object.keys(D.cities).map(c => `<option>${c}</option>`).join("");
-    $("#city").value = city;
-    $("#city").onchange = e => { city = e.target.value; renderBoard(); };
+$("#seatMap").addEventListener("click", event => {
+  const button = event.target.closest(".seat");
+  if (!button) return;
+  const picked = !seatPicker.selected.has(button.dataset.seat);
+  seatPicker.selected[picked ? "add" : "delete"](button.dataset.seat);
+  button.setAttribute("aria-pressed", picked);
+  updateSeatSummary();
+});
 
-    $("#promoList").innerHTML = D.promos.map(p =>
-      `<div class="promo"><h3>${p.title}</h3><span>${p.text}</span></div>`).join("");
-    $("#soon").innerHTML = D.soon.map((s, i) =>
-      `<article class="film"><div class="poster" style="--ang:${ang(i)}"><em>${s.tag}</em>${s.title}</div>
-        <h3>${s.title}</h3><div class="meta">${s.genre}</div>
-        <button class="btn ghost" data-toast="Notificación registrada">Avísame</button></article>`).join("");
-    $("#faq").innerHTML = D.faq.map(f =>
-      `<details><summary>${f.q}</summary><p>${f.a}</p></details>`).join("");
+$("#confirmSeats").addEventListener("click", confirmSeats);
+$("#openCart").addEventListener("click", () => cartDialog.showModal());
+$("#pay").addEventListener("click", checkout);
+$("#city").addEventListener("change", event => { state.city = event.target.value; renderBoard(); });
 
-    renderBoard(); renderFilms(); drawCart();
-  } catch (e) {
-    console.error(e);
-    toast("No se pudo cargar el contenido");
+/* ---------- Arranque ---------- */
+async function init() {
+  const { ok, data } = await api("/api/contenido");
+  if (!ok) {
+    $("#films").innerHTML = emptyState(
+      "No pudimos cargar la cartelera.",
+      '<button class="btn ghost" type="button" data-action="retry">Reintentar</button>'
+    );
+    return toast(data.error || "No pudimos cargar la cartelera.");
   }
-})();
+
+  state.data = data;
+  $("#city").innerHTML = Object.keys(data.cities).map(city => `<option>${esc(city)}</option>`).join("");
+  $("#city").value = state.city;
+
+  renderBoard();
+  renderFilters();
+  renderFilms();
+  renderStaticSections();
+  drawCart();
+}
+
+init();
