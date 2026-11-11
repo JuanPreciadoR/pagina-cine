@@ -1,26 +1,22 @@
 /* script.js · Cartelera, selección de sillas y compra */
 
-const SEAT_ROWS = ["A", "B", "C", "D", "E"];
-const SEAT_COLUMNS = 6;
-const AISLE_BEFORE_COLUMN = 4;
-
-const state = { data: null, city: "Bogotá", format: "Todos", cart: [] };
-const seatPicker = { film: null, time: null, format: null, selected: new Set(), request: 0 };
+const state = { data: null, city: null, venue: null, format: "Todos", cart: [] };
+const seatPicker = { functionId: null, film: null, time: null, format: null, price: 0, selected: new Set(), request: 0 };
 
 const seatDialog = $("#seatDialog");
 const cartDialog = $("#cartDialog");
 
-const price = format => state.data.ticketPrices[format] ?? state.data.ticketPrices.default;
 const hue = seed => (seed * 47 + 205) % 360;
 const plural = (n, one, many) => (n === 1 ? one : many);
-const isSameFunction = line =>
-  line.pelicula === seatPicker.film && line.funcion === seatPicker.time && line.formato === seatPicker.format;
+const isSameFunction = line => line.functionId === seatPicker.functionId;
 
 /* ---------- Plantillas ---------- */
-const slotButton = (film, slot) => `
+const slotButton = (film, showtime) => `
   <button class="slot" type="button" data-action="pick-seats"
-    data-film="${esc(film.title)}" data-format="${esc(film.format)}" data-time="${esc(slot)}"
-    aria-label="${esc(film.title)}, ${esc(film.format)}, función de las ${esc(slot)}">${esc(slot)}</button>`;
+    data-function-id="${showtime.id}" data-film="${esc(film.title)}"
+    data-format="${esc(showtime.format)}" data-time="${esc(showtime.time)}"
+    data-price="${showtime.price}" data-venue="${esc(showtime.venue)}"
+    aria-label="${esc(film.title)}, ${esc(showtime.format)}, función de las ${esc(showtime.time)} en ${esc(showtime.venue)}">${esc(showtime.time)}</button>`;
 
 const posterCard = ({ seed, title, chips, meta, footer, poster }) => `
   <article class="film" style="--hue:${hue(seed)}">
@@ -39,19 +35,22 @@ const emptyState = (message, actionHtml) =>
 
 /* ---------- Render ---------- */
 function renderBoard() {
-  const { films, slots, cities } = state.data;
-  const venues = cities[state.city] || cities["Bogotá"];
-  $("#boardCity").textContent = state.city;
-  $("#board").innerHTML = films.length
-    ? films.slice(0, 4).map((film, i) => `
+  const { films } = state.data;
+  $("#boardCity").textContent = `${state.city} · ${state.venue}`;
+  const shows = films.map(film => ({
+    film,
+    showtimes: film.showtimes.filter(showtime => showtime.city === state.city && showtime.venue === state.venue),
+  })).filter(item => item.showtimes.length);
+  $("#board").innerHTML = shows.length
+    ? shows.map(({ film, showtimes }) => `
         <div class="board-row">
           <div>
             <strong>${esc(film.title)}</strong>
-            <p class="meta">${esc(venues[i % venues.length])}, ${esc(film.format)}</p>
+            <p class="meta">${esc(showtimes[0].venue)}, ${esc(showtimes[0].format)}</p>
           </div>
-          <div class="slots">${slots.slice(i % 3, (i % 3) + 2).map(slot => slotButton(film, slot)).join("")}</div>
+          <div class="slots">${showtimes.map(showtime => slotButton(film, showtime)).join("")}</div>
         </div>`).join("")
-    : '<p class="meta">No hay funciones programadas por ahora.</p>';
+    : '<p class="meta">No hay funciones programadas para esta ciudad.</p>';
 }
 
 function renderFilters() {
@@ -66,8 +65,10 @@ function syncFilters() {
 }
 
 function renderFilms() {
-  const { films, slots } = state.data;
-  const visible = films.filter(film => state.format === "Todos" || film.format === state.format);
+  const { films } = state.data;
+  const visible = films.filter(film => film.showtimes.some(showtime =>
+    showtime.city === state.city && showtime.venue === state.venue &&
+    (state.format === "Todos" || showtime.format === state.format)));
 
   $("#films").innerHTML = visible.length
     ? visible.map((film, i) => posterCard({
@@ -76,7 +77,10 @@ function renderFilms() {
         poster: film.poster ?? null,
         chips: [film.rating, film.format],
         meta: `${film.genre}, ${film.duration}`,
-        footer: `<div class="slots">${slots.map(slot => slotButton(film, slot)).join("")}</div>`,
+        footer: `<div class="slots">${film.showtimes
+          .filter(showtime => showtime.city === state.city && showtime.venue === state.venue &&
+            (state.format === "Todos" || showtime.format === state.format))
+          .map(showtime => slotButton(film, showtime)).join("")}</div>`,
       })).join("")
     : emptyState(
         `No hay funciones en formato ${state.format}.`,
@@ -88,9 +92,9 @@ function renderStaticSections() {
   const { promos, soon, faq } = state.data;
 
   const announcements = [
-    { image: "anuncio.png", alt: "Exploradores descubren un planeta lejano", kicker: "PROMOCIÓN DE TEMPORADA" },
-    { image: "anuncion2.png", alt: "Investigadores recorren una ciudad misteriosa", kicker: "COMBOS CINESTAR" },
-    { image: "anuncio3.png", alt: "Aventura entre montañas y ruinas antiguas", kicker: "PRÓXIMOS ESTRENOS" },
+    { image: "anuncio.webp", alt: "Exploradores descubren un planeta lejano", kicker: "PROMOCIÓN DE TEMPORADA" },
+    { image: "anuncion2.webp", alt: "Investigadores recorren una ciudad misteriosa", kicker: "COMBOS CINESTAR" },
+    { image: "anuncio3.webp", alt: "Aventura entre montañas y ruinas antiguas", kicker: "PRÓXIMOS ESTRENOS" },
   ];
 
   $("#promoList").innerHTML = announcements.map((announcement, index) => {
@@ -103,7 +107,8 @@ function renderStaticSections() {
 
     return `
       <article class="promo-banner-card">
-        <img src="/static/images/posters/${announcement.image}" alt="${esc(announcement.alt)}">
+        <img src="/static/images/posters/${announcement.image}" alt="${esc(announcement.alt)}"
+          loading="${index === 0 ? "eager" : "lazy"}" decoding="async">
         <div class="promo-content">
           <p class="promo-kicker">${announcement.kicker}</p>
           <h3>${esc(title)}</h3>
@@ -129,7 +134,7 @@ function renderStaticSections() {
 
 function drawCart() {
   const tickets = state.cart.reduce((sum, line) => sum + line.asientos.length, 0);
-  const total = state.cart.reduce((sum, line) => sum + price(line.formato) * line.asientos.length, 0);
+  const total = state.cart.reduce((sum, line) => sum + line.precio * line.asientos.length, 0);
 
   $("#count").textContent = tickets;
   $("#total").textContent = cop(total);
@@ -143,7 +148,7 @@ function drawCart() {
             <p class="meta">${plural(line.asientos.length, "Silla", "Sillas")} ${line.asientos.join(", ")}</p>
           </div>
           <div class="cart-item-side">
-            <span>${cop(price(line.formato) * line.asientos.length)}</span>
+            <span>${cop(line.precio * line.asientos.length)}</span>
             <button class="link" type="button" data-action="remove" data-index="${i}"
               aria-label="Quitar ${esc(line.pelicula)} de la compra">Quitar</button>
           </div>
@@ -154,18 +159,23 @@ function drawCart() {
 /* ---------- Selección de sillas y compra ---------- */
 function updateSeatSummary() {
   const seats = [...seatPicker.selected].sort();
-  const total = seats.length * price(seatPicker.format);
+  const total = seats.length * seatPicker.price;
   $("#seatSummary").textContent = seats.length
     ? `${plural(seats.length, "Silla elegida", "Sillas elegidas")}: ${seats.join(", ")}. Total ${cop(total)}`
     : "Elige al menos una silla.";
   $("#confirmSeats").disabled = !seats.length;
 }
 
-function renderSeatMap(taken) {
+function renderSeatMap(seats, taken) {
   const inCart = new Set(state.cart.find(isSameFunction)?.asientos);
-  const columns = Array.from({ length: SEAT_COLUMNS }, (_, i) => i + 1);
-
-  const seat = code => {
+  const rows = new Map();
+  seats.forEach(code => {
+    const [, row, column] = code.match(/^([A-Z]+)(\d+)$/) ?? [];
+    if (!row) return;
+    if (!rows.has(row)) rows.set(row, []);
+    rows.get(row).push({ code, column: Number(column) });
+  });
+  const seat = ({ code }) => {
     const isTaken = taken.has(code);
     const isMine = inCart.has(code);
     const status = isTaken ? ", ocupada" : isMine ? ", ya está en tu compra" : "";
@@ -173,25 +183,26 @@ function renderSeatMap(taken) {
       aria-pressed="false" aria-label="Silla ${code}${status}"${isTaken || isMine ? " disabled" : ""}>${code.slice(1)}</button>`;
   };
 
-  $("#seatMap").innerHTML = SEAT_ROWS.map(row => `
+  $("#seatMap").innerHTML = [...rows].map(([row, rowSeats]) => `
     <div class="seat-row">
       <span class="row-label" aria-hidden="true">${row}</span>
-      ${columns.map(col => (col === AISLE_BEFORE_COLUMN ? '<i aria-hidden="true"></i>' : "") + seat(`${row}${col}`)).join("")}
+      ${rowSeats.sort((a, b) => a.column - b.column).map((item, index) =>
+        (item.column === 4 && index ? '<i aria-hidden="true"></i>' : "") + seat(item)).join("")}
     </div>`).join("");
 }
 
-async function openSeats({ film, time, format }) {
-  Object.assign(seatPicker, { film, time, format, request: seatPicker.request + 1 });
+async function openSeats({ functionId, film, time, format, price, venue }) {
+  Object.assign(seatPicker, { functionId, film, time, format, price, venue, request: seatPicker.request + 1 });
   seatPicker.selected.clear();
 
   const request = seatPicker.request;
   $("#seatTitle").textContent = film;
-  $("#seatSub").textContent = `${format}, función de las ${time}`;
+  $("#seatSub").textContent = `${venue}, ${format}, función de las ${time} · ${cop(price)} por silla`;
   $("#seatMap").innerHTML = '<p class="meta">Consultando disponibilidad…</p>';
   updateSeatSummary();
   seatDialog.showModal();
 
-  const query = new URLSearchParams({ pelicula: film, funcion: time });
+  const query = new URLSearchParams({ funcion: functionId });
   const { ok, data } = await api(`/api/asientos-ocupados?${query}`);
   if (request !== seatPicker.request) return;
 
@@ -199,7 +210,7 @@ async function openSeats({ film, time, format }) {
     seatDialog.close();
     return toast(data.error || "No pudimos consultar las sillas. Inténtalo de nuevo.");
   }
-  renderSeatMap(new Set(data.asientos_ocupados));
+  renderSeatMap(data.asientos, new Set(data.asientos_ocupados));
 }
 
 function confirmSeats() {
@@ -207,7 +218,14 @@ function confirmSeats() {
   const line = state.cart.find(isSameFunction);
 
   if (line) line.asientos.push(...seats);
-  else state.cart.push({ pelicula: seatPicker.film, funcion: seatPicker.time, formato: seatPicker.format, asientos: seats });
+  else state.cart.push({
+    functionId: seatPicker.functionId,
+    pelicula: seatPicker.film,
+    funcion: seatPicker.time,
+    formato: seatPicker.format,
+    precio: seatPicker.price,
+    asientos: seats,
+  });
 
   drawCart();
   seatDialog.close();
@@ -218,7 +236,15 @@ async function checkout() {
   $("#pay").disabled = true;
 
   while (state.cart.length) {
-    const { ok, status, data } = await api("/api/compra", { method: "POST", body: state.cart[0] });
+    const line = state.cart[0];
+    const { ok, status, data } = await api("/api/compra", {
+      method: "POST",
+      body: {
+        function_id: line.functionId,
+        seats: line.asientos,
+        payment_type: $("#paymentType").value,
+      },
+    });
 
     if (status === 401) {
       cartDialog.close();
@@ -243,7 +269,14 @@ async function checkout() {
 
 /* ---------- Eventos y Arranque ---------- */
 const actions = {
-  "pick-seats": el => openSeats({ film: el.dataset.film, time: el.dataset.time, format: el.dataset.format }),
+  "pick-seats": el => openSeats({
+    functionId: Number(el.dataset.functionId),
+    film: el.dataset.film,
+    time: el.dataset.time,
+    format: el.dataset.format,
+    price: Number(el.dataset.price),
+    venue: el.dataset.venue,
+  }),
   filter: el => { state.format = el.dataset.format; syncFilters(); renderFilms(); },
   remove: el => { state.cart.splice(Number(el.dataset.index), 1); drawCart(); },
   notify: el => toast(`Te avisaremos del estreno de ${el.dataset.title}.`),
@@ -267,7 +300,24 @@ $("#seatMap").addEventListener("click", event => {
 $("#confirmSeats").addEventListener("click", confirmSeats);
 $("#openCart").addEventListener("click", () => cartDialog.showModal());
 $("#pay").addEventListener("click", checkout);
-$("#city").addEventListener("change", event => { state.city = event.target.value; renderBoard(); });
+function updateVenues() {
+  const venues = state.data.venues[state.city] ?? [];
+  state.venue = venues[0] ?? null;
+  $("#venue").innerHTML = venues.map(venue => `<option>${esc(venue)}</option>`).join("");
+  $("#venue").value = state.venue;
+}
+
+$("#city").addEventListener("change", event => {
+  state.city = event.target.value;
+  updateVenues();
+  renderBoard();
+  renderFilms();
+});
+$("#venue").addEventListener("change", event => {
+  state.venue = event.target.value;
+  renderBoard();
+  renderFilms();
+});
 function updatePromoPagination() {
   const list = $("#promoList");
   const current = list.clientWidth ? Math.round(list.scrollLeft / list.clientWidth) : 0;
@@ -329,8 +379,12 @@ async function init() {
   }
 
   state.data = data;
-  $("#city").innerHTML = Object.keys(data.cities).map(city => `<option>${esc(city)}</option>`).join("");
+  state.city = data.cities.includes("Bogotá") ? "Bogotá" : data.cities[0] ?? null;
+  $("#city").innerHTML = data.cities.map(city => `<option>${esc(city)}</option>`).join("");
   $("#city").value = state.city;
+  updateVenues();
+  $("#paymentType").innerHTML = data.paymentTypes
+    .map(type => `<option>${esc(type)}</option>`).join("");
 
   renderBoard();
   renderFilters();

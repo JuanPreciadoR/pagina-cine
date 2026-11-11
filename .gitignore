@@ -6,13 +6,9 @@ env/
 # Archivos de configuración privada
 .env
 
-# Archivos temporales de Python y BD local
+# Archivos temporales de Python
 __pycache__/
 *.py[cod]
-*.db
-*.db-journal
-*.db-shm
-*.db-wal
 
 # Archivos del sistema / editores
 .DS_Store

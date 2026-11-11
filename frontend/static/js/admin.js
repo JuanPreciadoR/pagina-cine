@@ -1,6 +1,6 @@
 /* admin.js · Métricas, usuarios, cartelera y ventas */
 
-const ROLES = { cliente: "Cliente", cajero: "Cajero", gerente: "Gerente", admin: "Administrador" };
+const ROLES = { cliente: "Cliente", admin: "Administrador" };
 
 const formatDate = value =>
   value
@@ -58,7 +58,7 @@ async function loadUsers() {
         </select>
       </td>
       <td>${formatDate(user.creado)}</td>
-      <td><button class="btn danger sm" type="button" data-action="delete-user" data-id="${user.id}" data-name="${esc(user.nombre)}">Eliminar</button></td>
+      <td><button class="btn danger sm" type="button" data-action="delete-user" data-id="${user.id}" data-name="${esc(user.nombre)}">Desactivar</button></td>
     </tr>`).join("") || emptyRow(4, "Aún no hay usuarios registrados.");
 }
 
@@ -104,9 +104,9 @@ async function changeRole(select) {
 const actions = {
   async "delete-user"(el) {
     const confirmed = await confirmAction({
-      title: "Eliminar usuario",
-      text: `Se eliminará a ${el.dataset.name} junto con su historial de compras. Esta acción no se puede deshacer.`,
-      action: "Eliminar usuario",
+      title: "Desactivar usuario",
+      text: `Se desactivará el acceso de ${el.dataset.name}. Su cuenta y su historial de compras se conservarán.`,
+      action: "Desactivar",
     });
     if (!confirmed) return;
     const { ok, data } = await request(`/api/admin/usuarios/eliminar/${el.dataset.id}`, { method: "DELETE" });
@@ -116,9 +116,9 @@ const actions = {
 
   async "delete-film"(el) {
     const confirmed = await confirmAction({
-      title: "Quitar película",
-      text: `Se quitará «${el.dataset.title}» de la cartelera.`,
-      action: "Quitar película",
+      title: "Retirar película",
+      text: `«${el.dataset.title}» dejará de mostrarse en cartelera. Su historial se conservará.`,
+      action: "Retirar película",
     });
     if (!confirmed) return;
     const { ok, data } = await request(`/api/admin/pelicula/eliminar/${el.dataset.id}`, { method: "DELETE" });

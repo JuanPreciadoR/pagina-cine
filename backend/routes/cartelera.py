@@ -1,21 +1,27 @@
+import re
+from pathlib import Path
 from flask import Blueprint, jsonify, request
 from db import get_db
 
 cartelera_bp = Blueprint('cartelera', __name__)
+POSTER_DIR = Path(__file__).resolve().parents[2] / "frontend" / "static" / "images" / "posters"
+POSTER_FILES = {
+    re.sub(r"[^a-z0-9]", "", path.stem.lower()): path.name
+    for path in POSTER_DIR.iterdir()
+    if path.suffix.lower() in {".webp", ".png"}
+}
+
+
+def get_poster(title, stored_filename=None):
+    filename = Path(str(stored_filename or "")).name
+    if filename and filename != "." and (POSTER_DIR / filename).is_file():
+        return f"/static/images/posters/{filename}"
+    title_key = re.sub(r"[^a-z0-9]", "", str(title).lower())
+    filename = next((name for stem, name in POSTER_FILES.items() if title_key.startswith(stem)), None)
+    return f"/static/images/posters/{filename}" if filename else None
 
 CONTENIDO_UI = {
-    "cities": {
-        "Bogotá": ["Andino", "Plaza Central", "Titán Plaza", "Santa Fe"],
-        "Medellín": ["El Tesoro", "Oviedo", "Florida"],
-        "Cali": ["Chipichape", "Unicentro", "Jardín Plaza"]
-    },
-    "formats": ["Todos", "2D", "3D", "IMAX", "4DX"],
-    "slots": ["12:30", "15:10", "17:45", "20:20", "22:50"],
-    "ticketPrices": {"default": 16000, "IMAX": 22000, "4DX": 25000, "3D": 19000},
-    "soon": [
-        {"title": "El Exorcista", "genre": "Terror / Suspenso", "tag": "Próximo estreno"},
-        {"title": "The Whale", "genre": "Drama", "tag": "Preventa abierta"}
-    ],
+    "soon": [],
     "promos": [
         {"title": "Martes y Miércoles 2x1", "text": "Entradas a precio especial en formatos 2D y 3D en todas las sedes."},
         {"title": "Combo Pareja CineStar", "text": "Crispetas grandes + 2 Bebidas + Doblados con 20% de descuento."}
@@ -33,52 +39,107 @@ def contenido():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT p.IdPelicula, p.Titulo, p.Duracion, p.Clasificacion, ISNULL(g.Nombre, 'Acción') 
-            FROM Peliculas p 
-            LEFT JOIN Generos g ON p.IdGenero = g.IdGenero 
-            WHERE p.IdEstado = 1
+            SELECT p.IdPelicula, p.Titulo, p.Duracion, p.Clasificacion,
+                   ISNULL(g.Nombre, 'Sin género'), p.Poster
+            FROM Peliculas p
+            INNER JOIN Estados ep ON ep.IdEstado = p.IdEstado AND ep.Nombre = 'Activo'
+            LEFT JOIN Generos g ON p.IdGenero = g.IdGenero
+            ORDER BY p.Titulo
         """)
-        films = []
-        for r in cursor.fetchall():
-            clean = str(r[1]).replace(" ", "")
-            poster = f"/static/images/posters/{clean[0].lower() + clean[1:]}.png"
-            films.append({
-                "id": r[0], 
-                "title": r[1], 
-                "duration": f"{r[2]} min", 
-                "rating": r[3], 
-                "genre": r[4], 
-                "format": "2D", 
-                "poster": poster
+        films = {
+            row[0]: {
+                "id": row[0],
+                "title": row[1],
+                "duration": f"{row[2]} min",
+                "rating": row[3],
+                "genre": row[4],
+                "format": "2D",
+                "poster": get_poster(row[1], row[5]),
+                "showtimes": [],
+            }
+            for row in cursor.fetchall()
+        }
+
+        cursor.execute("""
+            SELECT f.IdFuncion, f.IdPelicula, CONVERT(VARCHAR(5), f.Hora, 108),
+                   f.Formato, CAST(f.Precio AS FLOAT), c.Ciudad, c.Nombre
+            FROM Funciones f
+            INNER JOIN Estados ef ON ef.IdEstado = f.IdEstado AND ef.Nombre = 'Activo'
+            INNER JOIN Salas s ON s.IdSala = f.IdSala
+            INNER JOIN Cines c ON c.IdCine = s.IdCine
+            INNER JOIN Estados ec ON ec.IdEstado = c.IdEstado AND ec.Nombre = 'Activo'
+            WHERE CAST(f.FechaFuncion AS DATE) = CAST(GETDATE() AS DATE)
+            ORDER BY f.Hora, f.IdFuncion
+        """)
+        formats = set()
+        venues = {}
+        for row in cursor.fetchall():
+            film = films.get(row[1])
+            if film is None:
+                continue
+            formats.add(row[3])
+            venues.setdefault(row[5], set()).add(row[6])
+            film["format"] = row[3]
+            film["showtimes"].append({
+                "id": row[0],
+                "time": row[2],
+                "format": row[3],
+                "price": row[4],
+                "city": row[5],
+                "venue": row[6],
             })
 
+        cursor.execute("""
+            SELECT t.Nombre FROM TiposPago t
+            INNER JOIN Estados e ON e.IdEstado = t.IdEstado AND e.Nombre = 'Activo'
+            ORDER BY t.IdTipoPago
+        """)
+        payment_types = [row[0] for row in cursor.fetchall()]
+
     resp = dict(CONTENIDO_UI)
-    resp["films"] = films
+    resp["films"] = list(films.values())
+    resp["cities"] = sorted(venues)
+    resp["venues"] = {city: sorted(names) for city, names in venues.items()}
+    resp["formats"] = ["Todos", *sorted(formats)]
+    resp["paymentTypes"] = payment_types
     return jsonify(resp)
 
 @cartelera_bp.route("/api/asientos-ocupados", methods=["GET"])
 def asientos_ocupados():
-    pelicula = request.args.get("pelicula", "").strip()
-    funcion = request.args.get("funcion", "").strip()
-    if not pelicula or not funcion:
-        return jsonify({"error": "La película y la función son obligatorias."}), 400
+    try:
+        function_id = int(request.args.get("funcion", ""))
+    except ValueError:
+        return jsonify({"error": "La función indicada no es válida."}), 400
 
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT DISTINCT a.Fila, a.Numero
+            SELECT a.Fila, a.Numero,
+                   CASE WHEN EXISTS (
+                       SELECT 1
+                       FROM DetallesBoleta d
+                       INNER JOIN Boletas b ON b.IdBoleta = d.IdBoleta
+                       INNER JOIN Estados ed ON ed.IdEstado = d.IdEstado AND ed.Nombre = 'Activo'
+                       INNER JOIN Estados eb ON eb.IdEstado = b.IdEstado AND eb.Nombre = 'Activo'
+                       WHERE d.IdAsiento = a.IdAsiento AND b.IdFuncion = f.IdFuncion
+                   ) THEN 1 ELSE 0 END AS Ocupado
             FROM Funciones f
+            INNER JOIN Estados ef ON ef.IdEstado = f.IdEstado AND ef.Nombre = 'Activo'
             INNER JOIN Peliculas p ON p.IdPelicula = f.IdPelicula
+            INNER JOIN Estados ep ON ep.IdEstado = p.IdEstado AND ep.Nombre = 'Activo'
+            INNER JOIN Salas s ON s.IdSala = f.IdSala
+            INNER JOIN Estados es ON es.IdEstado = s.IdEstado AND es.Nombre = 'Activo'
+            INNER JOIN Cines c ON c.IdCine = s.IdCine
+            INNER JOIN Estados ec ON ec.IdEstado = c.IdEstado AND ec.Nombre = 'Activo'
             INNER JOIN Asientos a ON a.IdSala = f.IdSala
-            INNER JOIN DetallesBoleta d ON d.IdAsiento = a.IdAsiento
-            INNER JOIN Boletas b ON b.IdBoleta = d.IdBoleta AND b.IdFuncion = f.IdFuncion
-            WHERE p.Titulo = ?
-              AND CONVERT(VARCHAR(5), f.Hora, 108) = ?
-              AND f.IdEstado = 1
-              AND a.IdEstado = 1
-              AND d.IdEstado = 1
-              AND b.IdEstado = 1
-        """, (pelicula, funcion))
-        ocupados = [f"{fila}{numero}" for fila, numero in cursor.fetchall()]
+            INNER JOIN Estados ea ON ea.IdEstado = a.IdEstado AND ea.Nombre = 'Activo'
+            WHERE f.IdFuncion = ? AND CAST(f.FechaFuncion AS DATE) = CAST(GETDATE() AS DATE)
+            ORDER BY a.Fila, a.Numero
+        """, (function_id,))
+        seats = cursor.fetchall()
+        if not seats:
+            return jsonify({"error": "La función no está disponible."}), 404
+        seat_codes = [f"{row[0]}{row[1]}" for row in seats]
+        occupied = [f"{row[0]}{row[1]}" for row in seats if row[2]]
 
-    return jsonify({"asientos_ocupados": ocupados})
+    return jsonify({"asientos": seat_codes, "asientos_ocupados": occupied})

@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
-  <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/common.js') }}"></script>
 </head>
 <body>
   <header class="site-header">
@@ -65,16 +65,18 @@
             <label class="field">Póster
               <input class="control" type="file" name="poster" accept="image/png,image/jpeg,image/webp">
             </label>
-            <div class="row-2">
-              <label class="field">Formato
-                <select class="control" name="format">
-                  <option>2D</option><option>3D</option><option>IMAX</option><option>4DX</option>
-                </select>
-              </label>
-              <label class="field">Duración
-                <input class="control" name="duration" placeholder="2h 15m" required autocomplete="off">
-              </label>
-            </div>
+            <label class="field">Clasificación
+              <select class="control" name="rating" required>
+                <option value="Todos">Todo público</option>
+                <option value="7+">7+</option>
+                <option value="12+">12+</option>
+                <option value="15+">15+</option>
+                <option value="18+">18+</option>
+              </select>
+            </label>
+            <label class="field">Duración (minutos)
+              <input class="control" type="number" name="duration" min="1" max="600" required>
+            </label>
             <button class="btn" type="submit">Guardar en cartelera</button>
           </form>
         </section>
@@ -114,6 +116,6 @@
   </dialog>
 
   <div class="toast" id="toast" popover="manual" role="status" aria-live="polite"></div>
-  <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/admin.js') }}"></script>
 </body>
 </html>
