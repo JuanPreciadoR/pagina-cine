@@ -40,7 +40,7 @@ const emptyState = (message, actionHtml) =>
 /* ---------- Render ---------- */
 function renderBoard() {
   const { films, slots, cities } = state.data;
-  const venues = cities[state.city];
+  const venues = cities[state.city] || cities["Bogotá"];
   $("#boardCity").textContent = state.city;
   $("#board").innerHTML = films.length
     ? films.slice(0, 4).map((film, i) => `
@@ -87,8 +87,33 @@ function renderFilms() {
 function renderStaticSections() {
   const { promos, soon, faq } = state.data;
 
-  $("#promoList").innerHTML = promos.map(promo => `
-    <article class="promo"><h3>${esc(promo.title)}</h3><p>${esc(promo.text)}</p></article>`).join("");
+  const announcements = [
+    { image: "anuncio.png", alt: "Exploradores descubren un planeta lejano", kicker: "PROMOCIÓN DE TEMPORADA" },
+    { image: "anuncion2.png", alt: "Investigadores recorren una ciudad misteriosa", kicker: "COMBOS CINESTAR" },
+    { image: "anuncio3.png", alt: "Aventura entre montañas y ruinas antiguas", kicker: "PRÓXIMOS ESTRENOS" },
+  ];
+
+  $("#promoList").innerHTML = announcements.map((announcement, index) => {
+    const promo = promos[index];
+    const title = promo?.title ?? "Una nueva aventura te espera";
+    const text = promo?.text ?? "Descubre los próximos estrenos y encuentra tu siguiente historia favorita.";
+    const action = promo
+      ? '<button class="btn ghost sm" type="button" onclick="toast(\'¡Promoción aplicada!\')">Aprovechar</button>'
+      : '<a class="btn ghost sm" href="#proximamente">Ver próximos estrenos</a>';
+
+    return `
+      <article class="promo-banner-card">
+        <img src="/static/images/posters/${announcement.image}" alt="${esc(announcement.alt)}">
+        <div class="promo-content">
+          <p class="promo-kicker">${announcement.kicker}</p>
+          <h3>${esc(title)}</h3>
+          <p>${esc(text)}</p>
+          ${action}
+        </div>
+      </article>`;
+  }).join("");
+
+  updatePromoPagination();
 
   $("#soon").innerHTML = soon.map((item, i) => posterCard({
     seed: i,
@@ -126,7 +151,7 @@ function drawCart() {
     : '<li class="meta">Aún no has elegido sillas. Escoge una función para empezar.</li>';
 }
 
-/* ---------- Selección de sillas ---------- */
+/* ---------- Selección de sillas y compra ---------- */
 function updateSeatSummary() {
   const seats = [...seatPicker.selected].sort();
   const total = seats.length * price(seatPicker.format);
@@ -189,7 +214,6 @@ function confirmSeats() {
   toast(`${seats.length} ${plural(seats.length, "silla agregada", "sillas agregadas")}.`);
 }
 
-/* ---------- Compra ---------- */
 async function checkout() {
   $("#pay").disabled = true;
 
@@ -203,7 +227,7 @@ async function checkout() {
       break;
     }
     if (!ok) {
-      toast(data.error || "No pudimos registrar la compra. Tu selección sigue guardada.");
+      toast(data.error || "No pudimos registrar la compra.");
       break;
     }
     state.cart.shift();
@@ -217,7 +241,7 @@ async function checkout() {
   drawCart();
 }
 
-/* ---------- Eventos ---------- */
+/* ---------- Eventos y Arranque ---------- */
 const actions = {
   "pick-seats": el => openSeats({ film: el.dataset.film, time: el.dataset.time, format: el.dataset.format }),
   filter: el => { state.format = el.dataset.format; syncFilters(); renderFilms(); },
@@ -244,8 +268,56 @@ $("#confirmSeats").addEventListener("click", confirmSeats);
 $("#openCart").addEventListener("click", () => cartDialog.showModal());
 $("#pay").addEventListener("click", checkout);
 $("#city").addEventListener("change", event => { state.city = event.target.value; renderBoard(); });
+function updatePromoPagination() {
+  const list = $("#promoList");
+  const current = list.clientWidth ? Math.round(list.scrollLeft / list.clientWidth) : 0;
+  document.querySelectorAll(".promo-dot").forEach((dot, index) =>
+    dot.setAttribute("aria-current", String(index === current)));
+}
 
-/* ---------- Arranque ---------- */
+function scrollPromos(direction) {
+  const list = $("#promoList");
+  const count = list.children.length;
+  if (!count) return;
+  const current = Math.round(list.scrollLeft / list.clientWidth);
+  const next = (current + direction + count) % count;
+  list.scrollTo({ left: next * list.clientWidth, behavior: "smooth" });
+}
+
+$("#promoPrevious").addEventListener("click", () => scrollPromos(-1));
+$("#promoNext").addEventListener("click", () => scrollPromos(1));
+$("#promoPagination").addEventListener("click", event => {
+  const dot = event.target.closest("[data-slide-to]");
+  if (!dot) return;
+  const list = $("#promoList");
+  const slide = list.children[Number(dot.dataset.slideTo)];
+  if (!slide) return;
+  list.scrollTo({
+    left: list.scrollLeft + slide.getBoundingClientRect().left - list.getBoundingClientRect().left,
+    behavior: "smooth",
+  });
+});
+$("#promoList").addEventListener("scroll", updatePromoPagination, { passive: true });
+
+let lastScrollY = window.scrollY;
+let scrollFrame = 0;
+window.addEventListener("scroll", () => {
+  if (scrollFrame) return;
+  scrollFrame = requestAnimationFrame(() => {
+    const currentScrollY = window.scrollY;
+    const header = document.querySelector(".site-header-public");
+
+    if (currentScrollY <= 80 || currentScrollY < lastScrollY) {
+      header.classList.remove("is-hidden");
+    } else if (currentScrollY > lastScrollY) {
+      header.classList.add("is-hidden");
+    }
+
+    lastScrollY = currentScrollY;
+    scrollFrame = 0;
+  });
+}, { passive: true });
+
 async function init() {
   const { ok, data } = await api("/api/contenido");
   if (!ok) {

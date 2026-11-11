@@ -12,7 +12,7 @@
   <script src="{{ url_for('static', filename='js/common.js') }}"></script>
 </head>
 <body>
-  <header class="site-header">
+  <header class="site-header site-header-public">
     <div class="wrap top">
       <a class="logo" href="#top">Cine<b>Star</b></a>
 
@@ -20,13 +20,12 @@
         <select class="control" id="city"></select>
       </label>
 
-      <button class="btn ghost" id="themeBtn" type="button"></button>
-
       <button class="btn" id="openCart" type="button" aria-haspopup="dialog">
         Mi compra <span class="count" id="count">0</span>
       </button>
 
       <div class="account">
+        <button class="btn ghost" id="themeBtn" type="button"></button>
         <a class="btn ghost" id="adminLink" href="/admin" hidden>Panel de control</a>
         <span class="greeting" id="greeting" hidden></span>
         <button class="btn ghost" id="sessionBtn" type="button" aria-haspopup="dialog">
@@ -41,15 +40,41 @@
         <a href="#cartelera">Cartelera</a>
         <a href="#proximamente">Próximamente</a>
         <a href="#promos">Promociones</a>
-        <a href="#ayuda">Ayuda</a>
+        <a href="#ayuda">Ayuda & FAQ</a>
       </nav>
     </div>
   </header>
 
   <main id="top">
+      <section class="promo-section" id="promos">
+      <div class="wrap">
+          <div class="section-heading promo-heading">
+          <div>
+              <p class="eyebrow">DESTACADOS CINESTAR</p>
+              <h2>Anuncios y promociones</h2>
+          </div>
+            <div class="carousel-controls" aria-label="Controles de anuncios">
+            <button class="carousel-control" id="promoPrevious" type="button" aria-label="Anuncio anterior" aria-controls="promoList">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <button class="carousel-control" id="promoNext" type="button" aria-label="Siguiente anuncio" aria-controls="promoList">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="promos promo-track" id="promoList" role="region" aria-label="Anuncios y promociones" aria-roledescription="carrusel" tabindex="0"></div>
+        <div class="promo-pagination" id="promoPagination" aria-label="Ir a un anuncio">
+          <button class="promo-dot" type="button" data-slide-to="0" aria-label="Anuncio 1" aria-current="true"></button>
+          <button class="promo-dot" type="button" data-slide-to="1" aria-label="Anuncio 2" aria-current="false"></button>
+          <button class="promo-dot" type="button" data-slide-to="2" aria-label="Anuncio 3" aria-current="false"></button>
+        </div>
+      </div>
+    </section>
+
     <div class="hero">
       <div class="wrap hero-grid">
-        <div>
+        <div class="hero-copy">
+          <p class="eyebrow">VIVE EL CINE A TU MANERA</p>
           <h1>La función empieza antes de que se apaguen las luces.</h1>
           <p>Elige ciudad, película y hora. Compra tus boletas en un solo paso y entra directo a la sala.</p>
           <div class="hero-actions">
@@ -57,20 +82,18 @@
             <a class="btn ghost" href="#promos">Ver promociones</a>
           </div>
         </div>
-        <div class="board" aria-live="polite">
-          <h3>Próximas funciones en <span id="boardCity"></span></h3>
-          <div id="board"></div>
+        <div class="board">
+          <div class="board-heading">
+            <div>
+              <p class="eyebrow">EN TU CIUDAD</p>
+              <h2>Próximas funciones</h2>
+            </div>
+            <span class="board-location"><span id="boardCity"></span></span>
+          </div>
+          <div id="board" aria-live="polite"></div>
         </div>
       </div>
     </div>
-
-    <section id="promos">
-      <div class="wrap">
-        <h2>Promociones</h2>
-        <p class="lead">Descuentos por día y por formato.</p>
-        <div class="promos" id="promoList"></div>
-      </div>
-    </section>
 
     <section class="section-alt" id="cartelera">
       <div class="wrap">
@@ -98,21 +121,51 @@
     </section>
   </main>
 
-  <footer>
-    <div class="wrap footer-cols">
-      <div>
-        <h4>Explorar</h4>
-        <a href="#cartelera">Cartelera</a>
-        <a href="#proximamente">Próximamente</a>
-        <a href="#promos">Promociones</a>
+  <footer class="main-footer">
+    <div class="footer-container">
+      <div class="footer-col brand-col">
+        <h2 class="footer-logo">CineStar<span>.</span></h2>
+        <p>La mejor experiencia cinematográfica con tecnología multiformato de última generación.</p>
+        <div class="footer-socials">
+          <a href="#" aria-label="Facebook">FB</a>
+          <a href="#" aria-label="Instagram">IG</a>
+          <a href="#" aria-label="X/Twitter">X</a>
+        </div>
       </div>
-      <div>
-        <h4>Ayuda</h4>
-        <a href="#ayuda">Preguntas frecuentes</a>
-        <a href="#ayuda">Contacto y PQR</a>
-        <a href="#ayuda">Términos y condiciones</a>
-        <a href="#ayuda">Política de datos personales</a>
+
+      <div class="footer-col">
+        <h3>Cartelera</h3>
+        <ul>
+          <li><a href="#cartelera">Películas en Estreno</a></li>
+          <li><a href="#proximamente">Próximos Estrenos</a></li>
+          <li><a href="#promos">Promociones y Combos</a></li>
+          <li><a href="#top">Horarios y Sedes</a></li>
+        </ul>
       </div>
+
+      <div class="footer-col">
+        <h3>Formatos & Experiencias</h3>
+        <ul>
+          <li><span>Salas IMAX 3D</span></li>
+          <li><span>Experiencia 4DX</span></li>
+          <li><span>Salas VIP Reclinables</span></li>
+          <li><span>Sonido Dolby Atmos</span></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h3>Soporte & Legal</h3>
+        <ul>
+          <li><a href="#ayuda">Preguntas Frecuentes</a></li>
+          <li><a href="#">Términos y Condiciones</a></li>
+          <li><a href="#">Política de Privacidad</a></li>
+          <li><a href="#">Superintendencia de Industria y Comercio</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p>&copy; 2026 CineStar. Todos los derechos reservados. Proyecto Académico de Ingeniería de Sistemas.</p>
     </div>
   </footer>
 
@@ -183,5 +236,6 @@
 
   <script src="{{ url_for('static', filename='js/script.js') }}"></script>
   <script src="{{ url_for('static', filename='js/login.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/bg-animation.js') }}"></script>
 </body>
 </html>

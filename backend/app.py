@@ -18,6 +18,13 @@ app = Flask(
     static_folder=PROJECT_DIR / "frontend" / "static",
     template_folder=PROJECT_DIR / "frontend" / "templates",
 )
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+    
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
 # Registro de Módulos (Blueprints)
