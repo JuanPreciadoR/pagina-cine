@@ -68,7 +68,8 @@ def contenido():
             INNER JOIN Salas s ON s.IdSala = f.IdSala
             INNER JOIN Cines c ON c.IdCine = s.IdCine
             INNER JOIN Estados ec ON ec.IdEstado = c.IdEstado AND ec.Nombre = 'Activo'
-            WHERE CAST(f.FechaFuncion AS DATE) = CAST(GETDATE() AS DATE)
+                        WHERE f.FechaFuncion >= CONVERT(DATE, GETDATE())
+                            AND f.FechaFuncion < DATEADD(DAY, 1, CONVERT(DATE, GETDATE()))
             ORDER BY f.Hora, f.IdFuncion
         """)
         formats = set()
@@ -133,7 +134,9 @@ def asientos_ocupados():
             INNER JOIN Estados ec ON ec.IdEstado = c.IdEstado AND ec.Nombre = 'Activo'
             INNER JOIN Asientos a ON a.IdSala = f.IdSala
             INNER JOIN Estados ea ON ea.IdEstado = a.IdEstado AND ea.Nombre = 'Activo'
-            WHERE f.IdFuncion = ? AND CAST(f.FechaFuncion AS DATE) = CAST(GETDATE() AS DATE)
+                        WHERE f.IdFuncion = ?
+                            AND f.FechaFuncion >= CONVERT(DATE, GETDATE())
+                            AND f.FechaFuncion < DATEADD(DAY, 1, CONVERT(DATE, GETDATE()))
             ORDER BY a.Fila, a.Numero
         """, (function_id,))
         seats = cursor.fetchall()

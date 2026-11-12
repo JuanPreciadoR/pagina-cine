@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
   <title>CineStar | Cine en pantalla grande</title>
   <meta name="description" content="Elige ciudad, película y hora. Compra tus boletas en un solo paso.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,12 +17,14 @@
     <div class="wrap top">
       <a class="logo" href="#top">Cine<b>Star</b></a>
 
-      <label class="city-label">Ciudad
-        <select class="control" id="city"></select>
-      </label>
-      <label class="city-label">Sede
-        <select class="control" id="venue"></select>
-      </label>
+      <div class="location-controls" aria-label="Ubicación">
+        <label class="city-label">Ciudad
+          <select class="control" id="city"></select>
+        </label>
+        <label class="city-label">Sede
+          <select class="control" id="venue"></select>
+        </label>
+      </div>
 
       <button class="btn" id="openCart" type="button" aria-haspopup="dialog">
         Mi compra <span class="count" id="count">0</span>
@@ -54,7 +57,6 @@
           <div class="section-heading promo-heading">
           <div>
               <p class="eyebrow">DESTACADOS CINESTAR</p>
-              <h2>Anuncios y promociones</h2>
           </div>
             <div class="carousel-controls" aria-label="Controles de anuncios">
             <button class="carousel-control" id="promoPrevious" type="button" aria-label="Anuncio anterior" aria-controls="promoList">
@@ -174,9 +176,9 @@
       <h2 id="cartTitle">Mi compra</h2>
       <ul class="cart-items" id="cartItems"></ul>
       <p class="cart-total"><span>Total</span><span id="total">$0</span></p>
-      <label class="field">Forma de pago
-        <select class="control" id="paymentType"></select>
-      </label>
+      <fieldset class="payment-methods" id="paymentMethods">
+        <legend>Forma de pago</legend>
+      </fieldset>
       <button class="btn block" id="pay" type="button" disabled>Confirmar compra</button>
     </div>
   </dialog>

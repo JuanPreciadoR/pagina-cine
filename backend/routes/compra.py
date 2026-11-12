@@ -47,7 +47,9 @@ def comprar():
             INNER JOIN Estados es ON es.IdEstado = s.IdEstado AND es.Nombre = 'Activo'
             INNER JOIN Cines c ON c.IdCine = s.IdCine
             INNER JOIN Estados ec ON ec.IdEstado = c.IdEstado AND ec.Nombre = 'Activo'
-            WHERE f.IdFuncion = ? AND CAST(f.FechaFuncion AS DATE) = CAST(GETDATE() AS DATE)
+                        WHERE f.IdFuncion = ?
+                            AND f.FechaFuncion >= CONVERT(DATE, GETDATE())
+                            AND f.FechaFuncion < DATEADD(DAY, 1, CONVERT(DATE, GETDATE()))
         """, (function_id,))
         show = cursor.fetchone()
         if not show:

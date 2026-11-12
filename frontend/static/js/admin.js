@@ -1,6 +1,7 @@
 /* admin.js · Métricas, usuarios, cartelera y ventas */
 
 const ROLES = { cliente: "Cliente", admin: "Administrador" };
+let selectedSeatRoom = null;
 
 const formatDate = value =>
   value
@@ -63,7 +64,7 @@ async function loadUsers() {
 }
 
 async function loadFilms() {
-  const { ok, data } = await api("/api/contenido");
+  const { ok, data } = await request("/api/contenido");
   if (!ok) return toast(data.error || "No pudimos cargar la cartelera.");
 
   $("#filmsBody").innerHTML = (data.films ?? []).map(film => `
@@ -73,6 +74,64 @@ async function loadFilms() {
       <td>${esc(film.duration)}</td>
       <td><button class="btn danger sm" type="button" data-action="delete-film" data-id="${film.id}" data-title="${esc(film.title)}">Quitar</button></td>
     </tr>`).join("") || emptyRow(4, "La cartelera está vacía. Agrega una película.");
+}
+
+function fillSelect(id, items, label, value = "id") {
+  const select = $(`#${id}`);
+  select.innerHTML = items.length
+    ? items.map(item => `<option value="${esc(item[value])}">${esc(label(item))}</option>`).join("")
+    : '<option value="">No hay opciones activas</option>';
+  select.disabled = !items.length;
+}
+
+async function loadOperation() {
+  const selectedDate = $("#showFilterDate").value;
+  const { ok, data } = await request(`/api/admin/operacion?fecha=${encodeURIComponent(selectedDate)}`);
+  if (!ok) return toast(data.error || "No pudimos cargar la administración de sedes.");
+  const activeCinemas = data.sedes.filter(item => item.estado === "Activo");
+  const activeRooms = data.salas.filter(item => item.estado === "Activo");
+  const activeFilms = data.peliculas;
+
+  $("#cinemasBody").innerHTML = data.sedes.map(cinema => `
+    <tr><td><strong>${esc(cinema.nombre)}</strong><small>${esc(cinema.ciudad)}</small></td>
+      <td>${esc(cinema.tipo)}</td><td>${esc(cinema.documento)}</td><td>${esc(cinema.estado)}</td>
+      <td>${cinema.estado === "Activo" ? `<button class="btn danger sm" type="button" data-action="delete-cinema" data-id="${cinema.id}" data-name="${esc(cinema.nombre)}">Desactivar</button>` : ""}</td></tr>`
+  ).join("") || emptyRow(5, "Aún no hay sedes registradas.");
+
+  $("#roomsBody").innerHTML = data.salas.map(room => `
+    <tr><td><strong>${esc(room.nombre)}</strong><small>${esc(room.city)} · capacidad ${room.capacidad}</small></td>
+      <td>${esc(room.cinema)}</td><td>${room.asientos}</td><td>${esc(room.estado)}</td>
+      <td><button class="btn ghost sm" type="button" data-action="show-seats" data-id="${room.id}" data-name="${esc(room.nombre)}">Sillas</button>
+      ${room.estado === "Activo" ? `<button class="btn danger sm" type="button" data-action="delete-room" data-id="${room.id}" data-name="${esc(room.nombre)}">Desactivar</button>` : ""}</td></tr>`
+  ).join("") || emptyRow(5, "Aún no hay salas registradas.");
+
+  $("#showsBody").innerHTML = data.funciones.map(show => `
+    <tr><td><strong>${esc(show.pelicula)}</strong></td><td>${esc(show.sala)}<small>${esc(show.sede)}</small></td>
+      <td>${esc(show.fecha)}<small>${esc(show.hora)}</small></td><td>${esc(show.formato)}</td><td>${cop(show.precio)}</td>
+      <td>${esc(show.estado)}</td><td>${show.estado === "Activo" ? `<button class="btn danger sm" type="button" data-action="delete-show" data-id="${show.id}" data-name="${esc(show.pelicula)} · ${esc(show.fecha)} ${esc(show.hora)}">Cancelar</button>` : ""}</td></tr>`
+  ).join("") || emptyRow(7, "No hay funciones próximas.");
+
+  fillSelect("roomCinema", activeCinemas, cinema => `${cinema.nombre} · ${cinema.ciudad}`);
+  fillSelect("seatRoom", activeRooms, room => `${room.nombre} · ${room.cinema}`);
+  fillSelect("showRoom", activeRooms, room => `${room.nombre} · ${room.cinema}`);
+  fillSelect("showFilm", activeFilms, film => film.titulo);
+  if (selectedSeatRoom && activeRooms.some(room => room.id === selectedSeatRoom)) {
+    $("#seatRoom").value = selectedSeatRoom;
+  } else {
+    selectedSeatRoom = activeRooms[0]?.id ?? null;
+  }
+  if (selectedSeatRoom) await loadSeats(selectedSeatRoom);
+}
+
+async function loadSeats(roomId) {
+  selectedSeatRoom = Number(roomId);
+  $("#seatTitle").textContent = `Sillas de ${$("#seatRoom").selectedOptions[0]?.textContent ?? "la sala"}`;
+  const { ok, data } = await request(`/api/admin/salas/${selectedSeatRoom}/asientos`);
+  if (!ok) return toast(data.error || "No pudimos cargar las sillas.");
+  $("#seatsBody").innerHTML = data.asientos.map(seat => `
+    <tr><td><strong>${esc(seat.fila)}${seat.numero}</strong></td><td>${esc(seat.tipo)}</td><td>${esc(seat.estado)}</td>
+      <td>${seat.estado === "Activo" ? `<button class="btn danger sm" type="button" data-action="delete-seat" data-id="${seat.id}" data-name="${esc(seat.fila)}${seat.numero}">Desactivar</button>` : ""}</td></tr>`
+  ).join("") || emptyRow(4, "Esta sala no tiene sillas registradas.");
 }
 
 async function loadSales() {
@@ -123,7 +182,45 @@ const actions = {
     if (!confirmed) return;
     const { ok, data } = await request(`/api/admin/pelicula/eliminar/${el.dataset.id}`, { method: "DELETE" });
     toast(ok ? data.mensaje : data.error || "No pudimos quitar la película.");
-    loadFilms();
+    await Promise.all([loadFilms(), loadOperation()]);
+  },
+
+  async "delete-cinema"(el) {
+    const confirmed = await confirmAction({ title: "Desactivar sede", text: `La sede ${el.dataset.name} dejará de estar disponible para nuevas funciones.`, action: "Desactivar" });
+    if (!confirmed) return;
+    const { ok, data } = await request(`/api/admin/sedes/${el.dataset.id}`, { method: "DELETE" });
+    toast(ok ? data.mensaje : data.error || "No pudimos desactivar la sede.");
+    if (ok) await loadOperation();
+  },
+
+  async "delete-room"(el) {
+    const confirmed = await confirmAction({ title: "Desactivar sala", text: `Se desactivará ${el.dataset.name}. Primero cancela sus funciones futuras.`, action: "Desactivar" });
+    if (!confirmed) return;
+    const { ok, data } = await request(`/api/admin/salas/${el.dataset.id}`, { method: "DELETE" });
+    toast(ok ? data.mensaje : data.error || "No pudimos desactivar la sala.");
+    if (ok) await loadOperation();
+  },
+
+  async "show-seats"(el) {
+    $("#seatRoom").value = el.dataset.id;
+    await loadSeats(el.dataset.id);
+    $("#seatTitle").scrollIntoView({ behavior: "smooth", block: "start" });
+  },
+
+  async "delete-seat"(el) {
+    const confirmed = await confirmAction({ title: "Desactivar silla", text: `La silla ${el.dataset.name} se conservará en el historial y dejará de ofrecerse.`, action: "Desactivar" });
+    if (!confirmed) return;
+    const { ok, data } = await request(`/api/admin/asientos/${el.dataset.id}`, { method: "DELETE" });
+    toast(ok ? data.mensaje : data.error || "No pudimos desactivar la silla.");
+    if (ok) await Promise.all([loadSeats(selectedSeatRoom), loadOperation()]);
+  },
+
+  async "delete-show"(el) {
+    const confirmed = await confirmAction({ title: "Cancelar función", text: `Se cancelará ${el.dataset.name}. Las compras registradas se conservarán.`, action: "Cancelar función" });
+    if (!confirmed) return;
+    const { ok, data } = await request(`/api/admin/funciones/${el.dataset.id}`, { method: "DELETE" });
+    toast(ok ? data.mensaje : data.error || "No pudimos cancelar la función.");
+    if (ok) await loadOperation();
   },
 };
 
@@ -144,8 +241,45 @@ $("#addFilmForm").addEventListener("submit", async event => {
     body: new FormData(form),
   });
   toast(ok ? data.mensaje : data.error || "No pudimos guardar la película.");
-  if (ok) { form.reset(); loadFilms(); }
+  if (ok) { form.reset(); await Promise.all([loadFilms(), loadOperation()]); }
 });
+
+async function submitJsonForm(event, url, successMessage) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const body = Object.fromEntries(new FormData(form));
+  const { ok, data } = await request(url, { method: "POST", body });
+  toast(ok ? (data.mensaje || successMessage) : data.error || "No pudimos guardar los cambios.");
+  if (ok) {
+    form.reset();
+    await loadOperation();
+  }
+}
+
+$("#addCinemaForm").addEventListener("submit", event => submitJsonForm(event, "/api/admin/sedes", "Sede creada."));
+$("#addRoomForm").addEventListener("submit", event => submitJsonForm(event, "/api/admin/salas", "Sala creada."));
+$("#addShowForm").addEventListener("submit", event => submitJsonForm(event, "/api/admin/funciones", "Función programada."));
+$("#seatRoom").addEventListener("change", event => loadSeats(event.target.value));
+$("#addSeatForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const body = Object.fromEntries(new FormData(form));
+  const roomId = body.room_id;
+  delete body.room_id;
+  const { ok, data } = await request(`/api/admin/salas/${roomId}/asientos`, { method: "POST", body });
+  toast(ok ? data.mensaje : data.error || "No pudimos agregar la silla.");
+  if (ok) {
+    form.reset();
+    $("#seatRoom").value = roomId;
+    await Promise.all([loadSeats(roomId), loadOperation()]);
+  }
+});
+
+const today = new Date();
+const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+$("#showDate").min = localToday;
+$("#showFilterDate").value = localToday;
+$("#showFilterDate").addEventListener("change", loadOperation);
 
 /* ---------- Pestañas ---------- */
 const tabs = document.querySelectorAll("[role=tab]");
@@ -158,4 +292,4 @@ tabs.forEach(tab => tab.addEventListener("click", () => {
 }));
 
 /* ---------- Arranque ---------- */
-Promise.all([loadStats(), loadUsers(), loadFilms(), loadSales()]);
+Promise.all([loadStats(), loadUsers(), loadFilms(), loadSales(), loadOperation()]);

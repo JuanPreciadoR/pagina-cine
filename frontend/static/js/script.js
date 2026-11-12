@@ -20,7 +20,8 @@ const slotButton = (film, showtime) => `
 
 const posterCard = ({ seed, title, chips, meta, footer, poster }) => `
   <article class="film" style="--hue:${hue(seed)}">
-    <div class="poster"${poster ? ` style="background-image: linear-gradient(rgb(0 0 0 / 0.18), rgb(0 0 0 / 0.72)), url('${esc(poster)}')"` : ""}>
+    <div class="poster">
+      ${poster ? `<img class="poster-image" src="${esc(poster)}" alt="" loading="lazy" decoding="async">` : ""}
       <div class="chips">${chips.map(chip => `<span class="chip">${esc(chip)}</span>`).join("")}</div>
       <h3>${esc(title)}</h3>
     </div>
@@ -36,7 +37,7 @@ const emptyState = (message, actionHtml) =>
 /* ---------- Render ---------- */
 function renderBoard() {
   const { films } = state.data;
-  $("#boardCity").textContent = `${state.city} · ${state.venue}`;
+  $("#boardCity").textContent = `${state.city ?? "Todas las ciudades"} · ${state.venue ?? "Todas las sedes"}`;
   const shows = films.map(film => ({
     film,
     showtimes: film.showtimes.filter(showtime => showtime.city === state.city && showtime.venue === state.venue),
@@ -66,21 +67,23 @@ function syncFilters() {
 
 function renderFilms() {
   const { films } = state.data;
-  const visible = films.filter(film => film.showtimes.some(showtime =>
-    showtime.city === state.city && showtime.venue === state.venue &&
-    (state.format === "Todos" || showtime.format === state.format)));
+  const visible = films.map(film => ({
+    film,
+    showtimes: film.showtimes.filter(showtime =>
+      showtime.city === state.city && showtime.venue === state.venue &&
+      (state.format === "Todos" || showtime.format === state.format)),
+  })).filter(item => item.showtimes.length || !item.film.showtimes.length);
 
   $("#films").innerHTML = visible.length
-    ? visible.map((film, i) => posterCard({
+    ? visible.map(({ film, showtimes }, i) => posterCard({
         seed: film.id ?? i,
         title: film.title,
         poster: film.poster ?? null,
         chips: [film.rating, film.format],
         meta: `${film.genre}, ${film.duration}`,
-        footer: `<div class="slots">${film.showtimes
-          .filter(showtime => showtime.city === state.city && showtime.venue === state.venue &&
-            (state.format === "Todos" || showtime.format === state.format))
-          .map(showtime => slotButton(film, showtime)).join("")}</div>`,
+        footer: showtimes.length
+          ? `<div class="slots">${showtimes.map(showtime => slotButton(film, showtime)).join("")}</div>`
+          : '<p class="meta">Sin funciones programadas.</p>',
       })).join("")
     : emptyState(
         `No hay funciones en formato ${state.format}.`,
@@ -242,7 +245,7 @@ async function checkout() {
       body: {
         function_id: line.functionId,
         seats: line.asientos,
-        payment_type: $("#paymentType").value,
+        payment_type: $("#paymentMethods input:checked").value,
       },
     });
 
@@ -300,9 +303,9 @@ $("#seatMap").addEventListener("click", event => {
 $("#confirmSeats").addEventListener("click", confirmSeats);
 $("#openCart").addEventListener("click", () => cartDialog.showModal());
 $("#pay").addEventListener("click", checkout);
-function updateVenues() {
+function updateVenues(preferredVenue = state.venue) {
   const venues = state.data.venues[state.city] ?? [];
-  state.venue = venues[0] ?? null;
+  state.venue = venues.includes(preferredVenue) ? preferredVenue : venues[0] ?? null;
   $("#venue").innerHTML = venues.map(venue => `<option>${esc(venue)}</option>`).join("");
   $("#venue").value = state.venue;
 }
@@ -368,29 +371,52 @@ window.addEventListener("scroll", () => {
   });
 }, { passive: true });
 
-async function init() {
+async function refreshCatalog({ initialize = false } = {}) {
   const { ok, data } = await api("/api/contenido");
   if (!ok) {
-    $("#films").innerHTML = emptyState(
-      "No pudimos cargar la cartelera.",
-      '<button class="btn ghost" type="button" data-action="retry">Reintentar</button>'
-    );
-    return toast(data.error || "No pudimos cargar la cartelera.");
+    if (initialize) {
+      $("#films").innerHTML = emptyState(
+        "No pudimos cargar la cartelera.",
+        '<button class="btn ghost" type="button" data-action="retry">Reintentar</button>'
+      );
+      toast(data.error || "No pudimos cargar la cartelera.");
+    }
+    return;
   }
 
+  const previousCity = state.city;
+  const previousVenue = state.venue;
+  const previousPayment = $("#paymentMethods input:checked")?.value;
   state.data = data;
-  state.city = data.cities.includes("Bogotá") ? "Bogotá" : data.cities[0] ?? null;
+  state.city = data.cities.includes(previousCity)
+    ? previousCity
+    : data.cities.includes("Bogotá") ? "Bogotá" : data.cities[0] ?? null;
+  if (!data.formats.includes(state.format)) state.format = "Todos";
   $("#city").innerHTML = data.cities.map(city => `<option>${esc(city)}</option>`).join("");
   $("#city").value = state.city;
-  updateVenues();
-  $("#paymentType").innerHTML = data.paymentTypes
-    .map(type => `<option>${esc(type)}</option>`).join("");
+  updateVenues(previousVenue);
+  $("#paymentMethods").innerHTML = data.paymentTypes
+    .map((type, index) => `
+      <label class="payment-option">
+        <input type="radio" name="paymentType" value="${esc(type)}"${type === previousPayment || (!previousPayment && index === 0) ? " checked" : ""}>
+        <span>${esc(type)}</span>
+      </label>`).join("");
 
   renderBoard();
   renderFilters();
   renderFilms();
-  renderStaticSections();
+  if (initialize) renderStaticSections();
   drawCart();
+}
+
+function init() {
+  refreshCatalog({ initialize: true });
+  window.setInterval(() => {
+    if (!document.hidden) refreshCatalog();
+  }, 20000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshCatalog();
+  });
 }
 
 init();

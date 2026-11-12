@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
   <title>Panel de control | CineStar</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -37,6 +38,9 @@
     <div class="tablist" role="tablist" aria-label="Secciones del panel">
       <button class="tab" role="tab" id="tab-users" aria-controls="panel-users" aria-selected="true" type="button">Usuarios y roles</button>
       <button class="tab" role="tab" id="tab-films" aria-controls="panel-films" aria-selected="false" type="button">Cartelera</button>
+      <button class="tab" role="tab" id="tab-cinemas" aria-controls="panel-cinemas" aria-selected="false" type="button">Sedes</button>
+      <button class="tab" role="tab" id="tab-rooms" aria-controls="panel-rooms" aria-selected="false" type="button">Salas y sillas</button>
+      <button class="tab" role="tab" id="tab-shows" aria-controls="panel-shows" aria-selected="false" type="button">Funciones</button>
       <button class="tab" role="tab" id="tab-sales" aria-controls="panel-sales" aria-selected="false" type="button">Historial de ventas</button>
     </div>
 
@@ -89,6 +93,100 @@
               <tbody id="filmsBody"></tbody>
             </table>
           </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Sedes -->
+    <div role="tabpanel" id="panel-cinemas" aria-labelledby="tab-cinemas" hidden>
+      <div class="split">
+        <section>
+          <h2 class="panel-title">Registrar sede</h2>
+          <form class="stack" id="addCinemaForm">
+            <label class="field">Nombre<input class="control" name="nombre" required maxlength="100"></label>
+            <label class="field">Ciudad<input class="control" name="ciudad" required maxlength="100"></label>
+            <label class="field">Tipo<input class="control" name="tipo" required maxlength="50" value="Sede"></label>
+            <label class="field">Documento<input class="control" name="documento" required maxlength="30"></label>
+            <button class="btn" type="submit">Crear sede</button>
+          </form>
+        </section>
+        <section>
+          <h2 class="panel-title">Sedes registradas</h2>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Sede</th><th>Tipo</th><th>Documento</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr></thead>
+            <tbody id="cinemasBody"></tbody>
+          </table></div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Salas y sillas -->
+    <div role="tabpanel" id="panel-rooms" aria-labelledby="tab-rooms" hidden>
+      <div class="split">
+        <section>
+          <h2 class="panel-title">Crear sala y sillas</h2>
+          <form class="stack" id="addRoomForm">
+            <label class="field">Sede<select class="control" name="sede_id" id="roomCinema" required></select></label>
+            <label class="field">Nombre de sala<input class="control" name="nombre" required maxlength="50"></label>
+            <div class="row-2">
+              <label class="field">Filas<input class="control" type="number" name="filas" min="1" max="26" value="5" required></label>
+              <label class="field">Sillas por fila<input class="control" type="number" name="asientos_por_fila" min="1" max="30" value="6" required></label>
+            </div>
+            <button class="btn" type="submit">Crear sala</button>
+          </form>
+        </section>
+        <section>
+          <h2 class="panel-title">Salas registradas</h2>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Sala</th><th>Sede</th><th>Sillas activas</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="roomsBody"></tbody>
+          </table></div>
+        </section>
+      </div>
+      <section class="seat-management" aria-labelledby="seatTitle">
+        <div class="section-heading"><h2 class="panel-title" id="seatTitle">Sillas de la sala</h2>
+          <form class="inline-form" id="addSeatForm">
+            <label class="field">Sala<select class="control" name="room_id" id="seatRoom" required></select></label>
+            <label class="field">Fila<input class="control" name="fila" required maxlength="2" pattern="[A-Za-z]{1,2}" aria-label="Fila"></label>
+            <label class="field">Número<input class="control" type="number" name="numero" min="1" required aria-label="Número de silla"></label>
+            <button class="btn sm" type="submit">Agregar silla</button>
+          </form>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Silla</th><th>Tipo</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr></thead>
+          <tbody id="seatsBody"><tr><td class="empty-cell" colspan="4">Selecciona una sala para administrar sus sillas.</td></tr></tbody>
+        </table></div>
+      </section>
+    </div>
+
+    <!-- Funciones -->
+    <div role="tabpanel" id="panel-shows" aria-labelledby="tab-shows" hidden>
+      <div class="split">
+        <section>
+          <h2 class="panel-title">Programar función</h2>
+          <form class="stack" id="addShowForm">
+            <label class="field">Película<select class="control" name="pelicula_id" id="showFilm" required></select></label>
+            <label class="field">Sala<select class="control" name="sala_id" id="showRoom" required></select></label>
+            <div class="row-2">
+              <label class="field">Fecha<input class="control" type="date" name="fecha" id="showDate" required></label>
+              <label class="field">Hora<input class="control" type="time" name="hora" required></label>
+            </div>
+            <div class="row-2">
+              <label class="field">Formato<input class="control" name="formato" value="2D" maxlength="20" required></label>
+              <label class="field">Precio por silla<input class="control" type="number" name="precio" min="0" step="100" required></label>
+            </div>
+            <button class="btn" type="submit">Programar función</button>
+          </form>
+        </section>
+        <section>
+          <div class="section-heading">
+            <h2 class="panel-title">Funciones del día</h2>
+            <label class="field">Consultar fecha<input class="control" type="date" id="showFilterDate"></label>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Película</th><th>Sala / sede</th><th>Fecha y hora</th><th>Formato</th><th>Precio</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr></thead>
+            <tbody id="showsBody"></tbody>
+          </table></div>
         </section>
       </div>
     </div>

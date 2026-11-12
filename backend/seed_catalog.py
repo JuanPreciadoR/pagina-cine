@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 from db import get_db
 
@@ -80,6 +80,7 @@ def add_cinemas(cursor, state_id):
 
 def add_seats_and_shows(cursor, state_id, seat_type_id, cinemas, films):
     today = date.today()
+    schedule_dates = [today + timedelta(days=offset) for offset in range(7)]
     for _, venue, cinema_id in cinemas:
         cursor.execute("SELECT IdSala FROM Salas WHERE IdCine = ? AND Nombre = ?", (cinema_id, "Sala 1"))
         row = cursor.fetchone()
@@ -105,21 +106,22 @@ def add_seats_and_shows(cursor, state_id, seat_type_id, cinemas, films):
                         (room_id, seat_type_id, row_name, number, state_id),
                     )
 
-        for film_id in films:
-            for showtime in SHOWTIMES:
-                show_time = time.fromisoformat(showtime)
-                cursor.execute(
-                    "SELECT IdFuncion FROM Funciones "
-                    "WHERE IdPelicula = ? AND IdSala = ? AND CAST(FechaFuncion AS DATE) = ? "
-                    "AND Hora = ? AND Formato = ?",
-                    (film_id, room_id, today, show_time, "2D"),
-                )
-                if not cursor.fetchone():
+        for schedule_date in schedule_dates:
+            for film_id in films:
+                for showtime in SHOWTIMES:
+                    show_time = time.fromisoformat(showtime)
                     cursor.execute(
-                        "INSERT INTO Funciones (IdPelicula, IdSala, FechaFuncion, Hora, Formato, Precio, IdEstado) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (film_id, room_id, datetime.combine(today, time.min), show_time, "2D", TICKET_PRICE, state_id),
+                        "SELECT IdFuncion FROM Funciones "
+                        "WHERE IdPelicula = ? AND IdSala = ? AND CAST(FechaFuncion AS DATE) = ? "
+                        "AND Hora = ? AND Formato = ?",
+                        (film_id, room_id, schedule_date, show_time, "2D"),
                     )
+                    if not cursor.fetchone():
+                        cursor.execute(
+                            "INSERT INTO Funciones (IdPelicula, IdSala, FechaFuncion, Hora, Formato, Precio, IdEstado) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (film_id, room_id, datetime.combine(schedule_date, time.min), show_time, "2D", TICKET_PRICE, state_id),
+                        )
 
 
 def seed_catalog():
@@ -176,4 +178,4 @@ def seed_catalog():
 if __name__ == "__main__":
     cinema_count, film_count = seed_catalog()
     print(f"Catálogo listo: {film_count} películas, {cinema_count} sedes, "
-          f"{cinema_count * len(SEAT_ROWS) * SEATS_PER_ROW} sillas y funciones para hoy.")
+            f"{cinema_count * len(SEAT_ROWS) * SEATS_PER_ROW} sillas y funciones para 7 días.")

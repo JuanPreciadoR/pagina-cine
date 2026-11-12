@@ -68,7 +68,7 @@
 
   function animate(timestamp) {
     frameId = 0;
-    if (document.hidden || reducedMotion.matches) return;
+    if (document.hidden || reducedMotion.matches || document.querySelector("dialog[open]")) return;
 
     if (timestamp - lastFrame >= 1000 / 20) {
       lastFrame = timestamp;
@@ -79,7 +79,7 @@
   }
 
   function syncAnimation() {
-    if (document.hidden || reducedMotion.matches) {
+    if (document.hidden || reducedMotion.matches || document.querySelector("dialog[open]")) {
       cancelAnimationFrame(frameId);
       frameId = 0;
       draw(false);
@@ -94,6 +94,8 @@
 
   document.addEventListener("visibilitychange", syncAnimation);
   reducedMotion.addEventListener("change", syncAnimation);
+  document.addEventListener("toggle", syncAnimation, true);
+  document.addEventListener("close", syncAnimation, true);
 
   resize();
   syncAnimation();

@@ -72,7 +72,7 @@ python backend/seed_catalog.py
 python backend/init_admin.py
 ```
 
-El catálogo es idempotente: agrega las cuatro películas con póster, sedes, salas, sillas y funciones cuando faltan, sin borrar ventas, usuarios ni otros registros. El acceso inicial es `admin@cinestar.com` con contraseña `admin123`; ejecuta `python backend/init_admin.py` para crear o restablecer esa cuenta. Esa clave es solo para desarrollo local: cámbiala antes de publicar la aplicación.
+El catálogo es idempotente: agrega las cuatro películas con póster, sedes, salas, sillas y funciones para los próximos siete días cuando faltan, sin borrar ventas, usuarios ni otros registros. El acceso inicial es `admin@cinestar.com` con contraseña `admin123`; ejecuta `python backend/init_admin.py` para crear o restablecer esa cuenta. Esa clave es solo para desarrollo local: cámbiala antes de publicar la aplicación.
 
 ### 5. Ejecutar el servidor de desarrollo
 
