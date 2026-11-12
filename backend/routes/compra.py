@@ -2,6 +2,7 @@ import re
 
 from flask import Blueprint, jsonify, request, session
 from db import get_db
+from security import limiter
 
 
 compra_bp = Blueprint("compra", __name__)
@@ -9,6 +10,7 @@ SEAT_CODE = re.compile(r"^[A-Z]{1,2}[1-9][0-9]*$")
 
 
 @compra_bp.route("/api/compra", methods=["POST"])
+@limiter.limit("10 per minute")
 def comprar():
     user_id = session.get("user_id")
     if not user_id:
@@ -97,10 +99,7 @@ def comprar():
             return jsonify({"error": "La cuenta no está disponible."}), 401
 
         customer_document = f"USR-{user_id}"
-        cursor.execute(
-            "SELECT TOP 1 IdCliente FROM Clientes WHERE Documento = ? OR (? IS NOT NULL AND Correo = ?)",
-            (customer_document, user[1], user[1]),
-        )
+        cursor.execute("SELECT IdCliente FROM Clientes WHERE Documento = ?", (customer_document,))
         customer = cursor.fetchone()
         if customer:
             customer_id = customer[0]
@@ -131,3 +130,56 @@ def comprar():
         conn.commit()
 
     return jsonify({"status": "ok", "boleta": ticket_id, "total": float(total)}), 201
+
+
+@compra_bp.route("/api/mis-compras", methods=["GET"])
+@limiter.limit("60 per minute")
+def mis_compras():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Inicia sesión para consultar tus boletas."}), 401
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT b.IdBoleta, CONVERT(VARCHAR(16), b.FechaCompra, 120), eb.Nombre,
+                   p.Titulo, c.Nombre, ISNULL(c.Ciudad, ''),
+                   CONVERT(VARCHAR(10), f.FechaFuncion, 23),
+                   CONVERT(VARCHAR(5), f.Hora, 108), f.Formato, b.Cantidad,
+                   CAST(b.Total AS FLOAT), tp.Nombre, a.Fila, a.Numero
+            FROM Boletas b
+            INNER JOIN Clientes cl ON cl.IdCliente = b.IdCliente
+            INNER JOIN Estados eb ON eb.IdEstado = b.IdEstado
+            INNER JOIN Funciones f ON f.IdFuncion = b.IdFuncion
+            INNER JOIN Peliculas p ON p.IdPelicula = f.IdPelicula
+            INNER JOIN Salas s ON s.IdSala = f.IdSala
+            INNER JOIN Cines c ON c.IdCine = s.IdCine
+            INNER JOIN TiposPago tp ON tp.IdTipoPago = b.IdTipoPago
+            LEFT JOIN DetallesBoleta d ON d.IdBoleta = b.IdBoleta
+            LEFT JOIN Asientos a ON a.IdAsiento = d.IdAsiento
+            WHERE cl.Documento = ?
+            ORDER BY b.FechaCompra DESC, b.IdBoleta DESC, a.Fila, a.Numero
+        """, (f"USR-{user_id}",))
+        rows = cursor.fetchall()
+
+    purchases = {}
+    for row in rows:
+        purchase = purchases.setdefault(row[0], {
+            "id": row[0],
+            "comprada": row[1],
+            "estado": row[2],
+            "pelicula": row[3],
+            "sede": row[4],
+            "ciudad": row[5],
+            "fecha": row[6],
+            "hora": row[7],
+            "formato": row[8],
+            "cantidad": row[9],
+            "total": row[10],
+            "pago": row[11],
+            "asientos": [],
+        })
+        if row[12] is not None:
+            purchase["asientos"].append(f"{row[12]}{row[13]}")
+
+    return jsonify({"compras": list(purchases.values())})

@@ -1,7 +1,8 @@
 import pyodbc
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, current_app, request, jsonify, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from db import get_db
+from security import limiter
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -16,7 +17,15 @@ def normalize_role(role):
     role = str(role or "cliente").strip().lower()
     return "admin" if role in {"admin", "administrador"} else role
 
+def clear_auth_session():
+    csrf_field = current_app.config.get("WTF_CSRF_FIELD_NAME", "csrf_token")
+    csrf_token = session.get(csrf_field)
+    session.clear()
+    if csrf_token:
+        session[csrf_field] = csrf_token
+
 @auth_bp.route("/api/registro", methods=["POST"])
+@limiter.limit("5 per hour")
 def registro():
     data = get_json()
     if not data:
@@ -81,10 +90,12 @@ def registro():
     except pyodbc.IntegrityError:
         return jsonify({"error": "El correo o nombre de usuario ya existe."}), 409
 
+    session.permanent = True
     session.update({"user_id": user_id, "user_nombre": nombre, "user_email": email, "user_rol": "cliente"})
     return jsonify({"status": "ok", "usuario": {"id": user_id, "nombre": nombre, "email": email, "rol": "cliente"}}), 201
 
 @auth_bp.route("/api/login", methods=["POST"])
+@limiter.limit("5 per minute")
 def login():
     data = get_json()
     if not data:
@@ -120,13 +131,14 @@ def login():
         return jsonify({"error": "Credenciales incorrectas."}), 401
 
     role = normalize_role(row[4])
-    session.clear()
+    clear_auth_session()
+    session.permanent = True
     session.update({"user_id": row[0], "user_nombre": row[1], "user_email": row[3], "user_rol": role})
     return jsonify({"status": "ok", "usuario": {"id": row[0], "nombre": row[1], "email": row[3], "rol": role}})
 
 @auth_bp.route("/api/logout", methods=["POST"])
 def logout():
-    session.clear()
+    clear_auth_session()
     return jsonify({"status": "ok"})
 
 @auth_bp.route("/api/sesion", methods=["GET"])

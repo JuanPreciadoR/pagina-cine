@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+  <title>Mis boletas | CineStar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+  <script defer src="{{ url_for('static', filename='js/common.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/mis-compras.js') }}"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap top">
+      <a class="logo" href="/">Cine<b>Star</b></a>
+      <span class="meta">Mis boletas</span>
+      <div class="account push">
+        <button class="btn ghost" id="themeBtn" type="button"></button>
+        <a class="btn ghost" href="/">Volver a cartelera</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap admin-main">
+    <div class="customer-heading">
+      <div>
+        <p class="eyebrow">TU CUENTA</p>
+        <h1>Mis boletas</h1>
+        <p class="lead">Consulta tus compras, funciones y asientos.</p>
+      </div>
+    </div>
+
+    <section class="customer-purchases" aria-labelledby="purchase-list-title">
+      <h2 class="panel-title" id="purchase-list-title">Historial de compras</h2>
+      <p class="meta" id="purchaseStatus" role="status" aria-live="polite">Cargando tus boletas…</p>
+      <div class="table-wrap" id="purchaseTable" hidden>
+        <table>
+          <thead>
+            <tr><th>Boleta</th><th>Película</th><th>Función</th><th>Asientos</th><th>Pago</th><th>Total</th><th>Estado</th></tr>
+          </thead>
+          <tbody id="purchasesBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" popover="manual" role="status" aria-live="polite"></div>
+</body>
+</html>

@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
   <title>CineStar | Cine en pantalla grande</title>
   <meta name="description" content="Elige ciudad, película y hora. Compra tus boletas en un solo paso.">
@@ -33,6 +34,7 @@
       <div class="account">
         <button class="btn ghost" id="themeBtn" type="button"></button>
         <a class="btn ghost" id="adminLink" href="/admin" hidden>Panel de control</a>
+        <a class="btn ghost" id="myTicketsLink" href="/mis-compras" hidden>Mis boletas</a>
         <span class="greeting" id="greeting" hidden></span>
         <button class="btn ghost" id="sessionBtn" type="button" aria-haspopup="dialog">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.4 0-8 2.2-8 5v3h16v-3c0-2.8-3.6-5-8-5Z"/></svg>

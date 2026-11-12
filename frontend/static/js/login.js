@@ -55,6 +55,7 @@
         $("#greeting").hidden = !user;
         $("#greeting").textContent = user ? `Hola, ${firstName()}` : "";
         $("#adminLink").hidden = user?.rol !== "admin";
+        $("#myTicketsLink").hidden = !user;
     }
 
     function openDialog() {

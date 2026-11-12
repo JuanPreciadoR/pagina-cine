@@ -10,9 +10,15 @@ const esc = value => String(value ?? "").replace(/[&<>"']/g, char => HTML_ESCAPE
 async function api(url, { method = "GET", body } = {}) {
   try {
     const isFormData = body instanceof FormData;
+    const requestMethod = method.toUpperCase();
+    const headers = body && !isFormData ? { "Content-Type": "application/json" } : {};
+    if (!["GET", "HEAD", "OPTIONS"].includes(requestMethod)) {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      if (csrfToken) headers["X-CSRFToken"] = csrfToken;
+    }
     const res = await fetch(url, {
       method,
-      headers: body && !isFormData ? { "Content-Type": "application/json" } : {},
+      headers,
       credentials: "same-origin",
       body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
     });

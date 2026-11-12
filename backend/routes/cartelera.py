@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 from flask import Blueprint, jsonify, request
 from db import get_db
+from security import limiter
 
 cartelera_bp = Blueprint('cartelera', __name__)
 POSTER_DIR = Path(__file__).resolve().parents[2] / "frontend" / "static" / "images" / "posters"
@@ -106,6 +107,7 @@ def contenido():
     return jsonify(resp)
 
 @cartelera_bp.route("/api/asientos-ocupados", methods=["GET"])
+@limiter.limit("60 per minute")
 def asientos_ocupados():
     try:
         function_id = int(request.args.get("funcion", ""))
