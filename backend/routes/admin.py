@@ -12,7 +12,23 @@ POSTER_DIR = Path(__file__).resolve().parents[2] / "frontend" / "static" / "imag
 POSTER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 def es_admin():
-    return session.get("user_rol") == "admin"
+    user_id = session.get("user_id")
+    if not user_id:
+        return False
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT TOP 1 1
+            FROM Usuarios u
+            INNER JOIN Estados eu ON eu.IdEstado = u.IdEstado AND eu.Nombre = 'Activo'
+            INNER JOIN UsuariosRoles ur ON ur.IdUsuario = u.IdUsuario
+            INNER JOIN Estados eur ON eur.IdEstado = ur.IdEstado AND eur.Nombre = 'Activo'
+            INNER JOIN Roles r ON r.IdRol = ur.IdRol
+            INNER JOIN Estados er ON er.IdEstado = r.IdEstado AND er.Nombre = 'Activo'
+            WHERE u.IdUsuario = ? AND LOWER(r.Nombre) IN ('admin', 'administrador')
+        """, (user_id,))
+        return cursor.fetchone() is not None
 
 @admin_bp.route("/api/admin/stats", methods=["GET"])
 def admin_stats():

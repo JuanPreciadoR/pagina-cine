@@ -98,12 +98,19 @@ def login():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT u.IdUsuario, u.NombreUsuario, u.Clave, u.Correo, ISNULL(r.Nombre, 'cliente')
+            SELECT u.IdUsuario, u.NombreUsuario, u.Clave, u.Correo,
+                   CASE WHEN EXISTS (
+                       SELECT 1
+                       FROM UsuariosRoles ur
+                       INNER JOIN Estados eur ON eur.IdEstado = ur.IdEstado AND eur.Nombre = 'Activo'
+                       INNER JOIN Roles r ON r.IdRol = ur.IdRol
+                       INNER JOIN Estados er ON er.IdEstado = r.IdEstado AND er.Nombre = 'Activo'
+                       WHERE ur.IdUsuario = u.IdUsuario
+                         AND LOWER(r.Nombre) IN ('admin', 'administrador')
+                   ) THEN 'admin' ELSE 'cliente' END
             FROM Usuarios u
-            LEFT JOIN UsuariosRoles ur ON u.IdUsuario = ur.IdUsuario
-            LEFT JOIN Roles r ON ur.IdRol = r.IdRol
-                        WHERE (u.Correo = ? OR u.NombreUsuario = ?)
-                            AND u.IdEstado = (SELECT IdEstado FROM Estados WHERE Nombre = 'Activo')
+            WHERE (u.Correo = ? OR u.NombreUsuario = ?)
+              AND u.IdEstado = (SELECT IdEstado FROM Estados WHERE Nombre = 'Activo')
         """, (email, email))
         row = cursor.fetchone()
         if row:
